@@ -2,8 +2,6 @@
 
 ## Capas y responsabilidades
 
-El proyecto sigue una separación en tres capas:
-
 ```
 ┌─────────────────────────────────────┐
 │           UI  (appcli.ui)           │  Presentación y eventos de usuario
@@ -13,73 +11,76 @@ El proyecto sigue una separación en tres capas:
 └─────────────────────────────────────┘
 ```
 
-La capa UI **no importa directamente** `ifcopenshell` ni `ollama`. Todo acceso a esas librerías pasa por `IFCLoader` y `OllamaClient` respectivamente.
+La capa UI no importa directamente `ifcopenshell` ni `ollama`. Todo acceso pasa por `IFCLoader` y `OllamaClient`.
 
 ---
 
-## Flujo de datos esperado
+## Flujo de datos
 
 ### Apertura de un archivo IFC
-
-1. El usuario selecciona un `.ifc` (mediante diálogo de archivo, a implementar en `app.py`).
-2. `App` llama a `IFCLoader.open(path)` → devuelve el modelo.
-3. `App` llama a `IFCLoader.get_tree()` → estructura jerárquica de elementos.
-4. `App` pasa el resultado a `TreePanel.load(ifc_model)` → puebla el `ttk.Treeview`.
+1. Botón `Abrir IFC` (toolbar) lanza `filedialog.askopenfilename()` en `App`.
+2. `App` abre un hilo secundario → `IFCLoader.open(path)` + `get_tree()`.
+3. Al terminar, `root.after(0, ...)` llama a `TreePanel.load(nodos)` y actualiza la statusbar con el total de elementos.
 
 ### Selección de un elemento en el árbol
+1. `TreePanel` captura `<<TreeviewSelect>>` y llama a `on_select(elemento)`.
+2. `App._on_elemento_seleccionado()` llama a `IFCLoader.get_properties(elemento)`.
+3. El resultado (lista de grupos PSet) se pasa a `PropsPanel.show(grupos)`.
+4. La statusbar muestra nombre y tipo del elemento seleccionado.
 
-1. El usuario hace clic en un nodo del árbol (`TreePanel`).
-2. `TreePanel` emite un evento (callback o binding Tkinter) con el elemento seleccionado.
-3. `App` recibe el evento, llama a `IFCLoader.get_properties(element)` → dict de propiedades.
-4. `App` llama a `PropsPanel.show(properties)` → actualiza la tabla.
-
-### Consulta a la IA
-
-1. El usuario escribe en el campo de entrada de `AIConsole` y pulsa Enter o "Enviar".
-2. `AIConsole._on_send()` recopila el texto y lo pasa a `OllamaClient.stream(prompt)`.
-3. Los tokens se van añadiendo al área de texto mediante `AIConsole.append()`.
+### Consulta a la IA (pendiente)
+1. `AIConsole._on_send()` recoge el texto del usuario.
+2. Lanza hilo → `OllamaClient.stream(prompt, system=contexto_ifc)`.
+3. Cada token llega a la UI con `root.after(0, append)`.
 
 ---
 
 ## Módulos clave
 
-### `appcli.ui.app.App`
-- Clase central que ensambla la UI.
-- Posee referencias a `TreePanel`, `PropsPanel` y `AIConsole`.
-- Es la única clase que coordina las tres capas.
-- Layout: `PanedWindow` horizontal (árbol + propiedades) encima, consola debajo.
+### `appcli.ui.theme`
+- Define la paleta completa de colores (BG_DARK, BG_PANEL, ACCENT, etc.) y fuentes.
+- Función `apply(root)` configura `ttk.Style` sobre el tema base `equilux` de `ttkthemes`.
+- Todos los módulos UI importan `theme` para colores y fuentes — no hay valores hardcoded en los paneles.
 
-### `appcli.ui.tree_panel.TreePanel`
-- Envuelve un `ttk.Treeview`.
-- Método `load(ifc_model)` → construye la jerarquía desde el modelo IFC.
-- Debe emitir eventos al seleccionar un nodo (pendiente de implementar).
+### `appcli.ui.app.App`
+- Usa `ThemedTk(theme="equilux")` como ventana raíz.
+- Ensambla toolbar, layout principal (con márgenes) y statusbar.
+- Única clase que coordina UI ↔ IFC ↔ IA.
+- Gestiona threading para operaciones bloqueantes con `root.after()`.
+- Statusbar muestra: elementos cargados · elemento activo · versión.
+
+### `appcli.ui.tree_panel.TreePanel(parent, on_select=None)`
+- Cabecera fija `ESTRUCTURA` + `ttk.Treeview` con scrollbar.
+- `load(nodos)` puebla el árbol desde la lista devuelta por `get_tree()`.
+- Mantiene `_elementos: dict[iid → elemento IFC]` para recuperar el objeto al seleccionar.
 
 ### `appcli.ui.props_panel.PropsPanel`
-- Envuelve un `ttk.Treeview` en modo tabla (dos columnas: propiedad / valor).
-- Método `show(properties: dict)` → limpia y recarga las filas.
+- Cabecera fija `PROPIEDADES` + `ttk.Treeview` en modo árbol+columnas.
+- `show(grupos)` acepta la lista de grupos de `get_properties()`.
+- PSets como nodos padre con tag `"pset"` (fondo y fuente diferenciados).
+- Columnas: Propiedad · Valor · Unidad.
 
 ### `appcli.ui.ai_console.AIConsole`
-- `tk.Text` (solo lectura) para mostrar el historial.
-- `ttk.Entry` para la entrada del usuario.
-- Método `append(text)` para añadir respuestas progresivas (streaming).
-- `_on_send()` es el punto de extensión para conectar con `OllamaClient`.
+- Cabecera `CONSOLA IA` + área `tk.Text` (solo lectura) + barra de entrada.
+- `append(text)` para añadir respuestas progresivas.
+- `_on_send()` pendiente de conectar con `OllamaClient`.
 
 ### `appcli.ifc.loader.IFCLoader`
-- Abstrae `ifcopenshell`.
-- `open(path)` → carga el archivo `.ifc`.
-- `get_tree()` → devuelve la jerarquía (a definir: lista anidada, dict, o nodos propios).
-- `get_properties(element)` → devuelve `dict[str, Any]`.
+- `open(path)` → carga con `ifcopenshell.open()`.
+- `get_tree()` → jerarquía espacial recursiva (`IsDecomposedBy` + `ContainsElements`).
+- `get_properties(elemento)` → lista de grupos `{"pset", "props": [{"nombre","valor","unidad"}]}`.
+  - Cubre `IfcPropertySet` y `IfcElementQuantity` (con unidades m, m², m³, kg).
 
 ### `appcli.ai.ollama_client.OllamaClient`
-- Abstrae la librería `ollama`.
-- `query(prompt)` → respuesta completa como `str`.
-- `stream(prompt)` → generador de tokens `str` para actualización progresiva de la UI.
+- `query(prompt)` → respuesta completa.
+- `stream(prompt, system="")` → generador de fragmentos para streaming en UI.
 - Modelo configurable en el constructor (por defecto `"llama3.2"`).
 
 ---
 
-## Decisiones de diseño a tener en cuenta
+## Decisiones de diseño
 
-- **Tkinter es single-thread**: las llamadas bloqueantes (Ollama, lectura de IFC grandes) deben ejecutarse en hilos separados (`threading.Thread`) y comunicar resultados a la UI mediante `root.after()` o una cola (`queue.Queue`).
-- **Coordinación en `App`**: los paneles no se conocen entre sí; toda comunicación pasa por `App`. Esto facilita el mantenimiento y evita acoplamiento.
-- **ifcopenshell**: los objetos IFC son instancias de clases generadas dinámicamente por la librería. Las propiedades se obtienen mediante `element.get_info()` o recorriendo `IfcPropertySet`.
+- **Threading**: operaciones lentas en hilo secundario; resultados a la UI con `root.after(0, callback)`.
+- **Coordinación en `App`**: los paneles no se conocen entre sí.
+- **`theme.py` como única fuente de verdad visual**: colores y fuentes centralizados, sin valores hardcoded en los paneles.
+- **`get_properties()` devuelve lista de grupos**, no dict plano, para la agrupación por PSet en la UI.

@@ -2,53 +2,56 @@
 
 ## Qué es este proyecto
 
-Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Foundation Classes, el formato estándar de intercambio en BIM — Building Information Modeling). El usuario puede abrir un archivo `.ifc`, navegar su jerarquía de elementos constructivos y consultar sus propiedades. Una consola integrada permite hacer preguntas en lenguaje natural sobre el modelo mediante **Ollama** corriendo en local.
+Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Foundation Classes, el formato estándar de intercambio en BIM). El usuario abre un archivo `.ifc`, navega su jerarquía de elementos y consulta sus propiedades. Una consola integrada permite preguntas en lenguaje natural mediante **Ollama** en local.
 
 ## Stack tecnológico
 
 | Componente | Tecnología |
 |---|---|
 | Lenguaje | Python 3.11+ |
-| Interfaz gráfica | Tkinter (stdlib) + ttk |
+| Interfaz gráfica | Tkinter (stdlib) + ttk + ttkthemes |
+| Tema visual | equilux (oscuro, plano, moderno) |
 | Lectura de IFC | ifcopenshell 0.8.4 |
-| IA local | ollama 0.6.1 (cliente Python) |
+| IA local | ollama 0.6.1 |
+| Tests | pytest |
 | Empaquetado | setuptools + pyproject.toml |
 | Entorno virtual | `.venv/` en la raíz del proyecto |
 
 ## Estado actual del proyecto
 
-El proyecto está en fase de **esqueleto estructural**. Las clases y módulos existen con sus interfaces definidas (firmas de métodos y docstrings) pero **sin lógica implementada**. Es el punto de partida para el desarrollo.
-
----
+- Carga de archivos IFC **implementada y funcional**.
+- Árbol de jerarquía espacial **implementado y funcional**.
+- Tabla de propiedades agrupada por PSet con columna de unidades **implementada**.
+- Tema visual oscuro con `ttkthemes` (equilux) **aplicado**.
+- Barra de herramientas superior y barra de estado inferior **implementadas**.
+- Márgenes interiores en el layout principal **aplicados**.
+- Consola IA: esqueleto pendiente de conectar con Ollama.
 
 ## Layout de la interfaz
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  AppCLI — IFC Viewer             │
-├──────────────────┬──────────────────────────────┤
-│                  │                              │
-│   Árbol IFC      │   Tabla de propiedades       │
-│   (TreePanel)    │   (PropsPanel)               │
-│                  │                              │
-│  Jerarquía de    │  Clave | Valor               │
-│  elementos:      │  ──────┼──────               │
-│  Proyecto        │  Name  │ Muro exterior        │
-│  └ Edificio      │  Type  │ IfcWall              │
-│    └ Planta      │  ...   │ ...                  │
-│      └ Muro      │                              │
-│        └ ...     │                              │
-├──────────────────┴──────────────────────────────┤
-│  Consola IA (AIConsole)                         │
-│  > ¿Cuántos muros hay en la planta baja?        │
-│  < Hay 12 muros en la planta baja...            │
-│  ┌─────────────────────────────────┐ [Enviar]   │
-│  │ Escribe tu pregunta aquí...     │            │
-│  └─────────────────────────────────┘            │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  [Abrir IFC]  nombre_archivo.ifc       (toolbar)     │
+├──────────────────────────────────────────────────────┤
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │ ← margen
+│  ┌──────────────────┬─────────────────────────────┐  │
+│  │  ESTRUCTURA      │  PROPIEDADES                │  │
+│  │                  │  ▼ Atributos                │  │
+│  │  IfcProject      │    Name     │ Muro  │       │  │
+│  │  └ IfcSite       │    Tipo IFC │ IfcW… │       │  │
+│  │    └ Edificio    │  ▼ Pset_... │       │       │  │
+│  │      └ Planta    │    Área     │ 25.3  │ m²    │  │
+│  │        └ Muro    │                             │  │
+│  ├──────────────────┴─────────────────────────────┤  │
+│  │  CONSOLA IA                                    │  │
+│  │  ┌──────────────────────────────────┐ [Enviar] │  │
+│  │  └──────────────────────────────────┘          │  │
+│  └─────────────────────────────────────────────────┘  │
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+├──────────────────────────────────────────────────────┤
+│  42 elementos cargados · Muro exterior [IfcWall]     │  ← statusbar
+└──────────────────────────────────────────────────────┘
 ```
-
----
 
 ## Estructura de archivos
 
@@ -57,17 +60,22 @@ AppCLI/
 ├── pyproject.toml              # Dependencias y metadatos
 ├── .gitignore
 ├── .venv/                      # Entorno virtual (no versionar)
-├── IAssistant/                 # Documentación interna del asistente
+├── docs/
+│   └── manual_usuario.md
+├── tests/
+│   └── __init__.py
+├── IAssistant/                 # Archivos de trabajo del asistente IA
 └── src/
     └── appcli/
-        ├── main.py             # Punto de entrada: instancia App y llama a run()
+        ├── main.py             # Punto de entrada
         ├── ui/
-        │   ├── app.py          # Ventana principal, ensambla los tres paneles
-        │   ├── tree_panel.py   # Panel árbol (ttk.Treeview)
-        │   ├── props_panel.py  # Panel propiedades (ttk.Treeview en modo tabla)
-        │   └── ai_console.py   # Consola IA: área de texto + campo de entrada
+        │   ├── theme.py        # Paleta, fuentes y estilos ttk centralizados
+        │   ├── app.py          # Ventana principal, toolbar, statusbar, coordinación
+        │   ├── tree_panel.py   # Árbol jerárquico IFC
+        │   ├── props_panel.py  # Tabla de propiedades por PSet
+        │   └── ai_console.py   # Consola de IA
         ├── ifc/
-        │   └── loader.py       # IFCLoader: open(), get_tree(), get_properties()
+        │   └── loader.py       # IFCLoader: carga y parseo IFC
         └── ai/
-            └── ollama_client.py # OllamaClient: query(), stream()
+            └── ollama_client.py # OllamaClient: query() y stream()
 ```

@@ -1,33 +1,175 @@
 """Ventana principal: organiza los tres paneles de la interfaz."""
 
+import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 
+from ttkthemes import ThemedTk
+
+from appcli.ui import theme
 from appcli.ui.tree_panel import TreePanel
 from appcli.ui.props_panel import PropsPanel
 from appcli.ui.ai_console import AIConsole
+from appcli.ifc.loader import IFCLoader
+
+MARGIN = 10
 
 
 class App:
     def __init__(self):
-        self.root = tk.Tk()
+        self.root = ThemedTk(theme="equilux")
         self.root.title("AppCLI — IFC Viewer")
-        self.root.geometry("1200x800")
+        self.root.geometry("1280x860")
+        self.loader = IFCLoader()
+        theme.apply(self.root)
+        self._build_toolbar()
+        self._build_statusbar()
         self._build_layout()
 
-    def _build_layout(self):
-        # Panel superior: árbol + propiedades
-        top_frame = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        top_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
+    # ------------------------------------------------------------------
+    # Toolbar
+    # ------------------------------------------------------------------
+    def _build_toolbar(self):
+        bar = tk.Frame(self.root, bg=theme.BG_DARK, height=44)
+        bar.pack(fill=tk.X, side=tk.TOP, padx=0, pady=0)
+        bar.pack_propagate(False)
 
-        self.tree_panel = TreePanel(top_frame)
-        self.props_panel = PropsPanel(top_frame)
-        top_frame.add(self.tree_panel.frame, weight=1)
-        top_frame.add(self.props_panel.frame, weight=2)
+        btn_open = tk.Button(
+            bar,
+            text="  Abrir IFC",
+            command=self._abrir_ifc,
+            bg=theme.ACCENT,
+            fg="#ffffff",
+            activebackground="#3a82d6",
+            activeforeground="#ffffff",
+            font=theme.FONT_BOLD,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=14,
+            pady=6,
+        )
+        btn_open.pack(side=tk.LEFT, padx=(MARGIN, 0), pady=7)
+
+        self.lbl_archivo = tk.Label(
+            bar,
+            text="Sin archivo cargado",
+            bg=theme.BG_DARK,
+            fg=theme.FG_SECONDARY,
+            font=theme.FONT_SMALL,
+        )
+        self.lbl_archivo.pack(side=tk.LEFT, padx=14)
+
+        self.root.bind("<Control-o>", lambda e: self._abrir_ifc())
+
+        ttk.Separator(self.root, orient=tk.HORIZONTAL).pack(fill=tk.X)
+
+    # ------------------------------------------------------------------
+    # Status bar
+    # ------------------------------------------------------------------
+    def _build_statusbar(self):
+        ttk.Separator(self.root, orient=tk.HORIZONTAL).pack(fill=tk.X, side=tk.BOTTOM)
+
+        bar = tk.Frame(self.root, bg=theme.BG_DARK, height=26)
+        bar.pack(fill=tk.X, side=tk.BOTTOM, padx=0)
+        bar.pack_propagate(False)
+
+        self.status_elementos = tk.Label(
+            bar, text="",
+            bg=theme.BG_DARK, fg=theme.FG_SECONDARY,
+            font=theme.FONT_SMALL, anchor="w",
+        )
+        self.status_elementos.pack(side=tk.LEFT, padx=(MARGIN, 20))
+
+        self.status_elemento_activo = tk.Label(
+            bar, text="",
+            bg=theme.BG_DARK, fg=theme.FG_SECONDARY,
+            font=theme.FONT_SMALL, anchor="w",
+        )
+        self.status_elemento_activo.pack(side=tk.LEFT)
+
+        self.status_modelo = tk.Label(
+            bar, text="IFC Viewer  v0.1",
+            bg=theme.BG_DARK, fg=theme.FG_SECONDARY,
+            font=theme.FONT_SMALL, anchor="e",
+        )
+        self.status_modelo.pack(side=tk.RIGHT, padx=(0, MARGIN))
+
+    # ------------------------------------------------------------------
+    # Layout principal
+    # ------------------------------------------------------------------
+    def _build_layout(self):
+        # Contenedor con márgenes
+        outer = tk.Frame(self.root, bg=theme.BG_DARK)
+        outer.pack(fill=tk.BOTH, expand=True,
+                   padx=MARGIN, pady=(MARGIN, MARGIN))
+
+        # Panel superior: árbol + propiedades
+        top_paned = ttk.PanedWindow(outer, orient=tk.HORIZONTAL)
+        top_paned.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
+
+        self.tree_panel = TreePanel(top_paned, on_select=self._on_elemento_seleccionado)
+        self.props_panel = PropsPanel(top_paned)
+        top_paned.add(self.tree_panel.frame, weight=1)
+        top_paned.add(self.props_panel.frame, weight=2)
+
+        # Separador
+        tk.Frame(outer, bg=theme.BORDER, height=1).pack(fill=tk.X, pady=(MARGIN, 0))
 
         # Panel inferior: consola IA
-        self.ai_console = AIConsole(self.root)
-        self.ai_console.frame.pack(fill=tk.BOTH, expand=False, side=tk.BOTTOM)
+        self.ai_console = AIConsole(outer)
+        self.ai_console.frame.pack(fill=tk.BOTH, expand=False,
+                                   side=tk.BOTTOM, pady=(0, 0))
+
+    # ------------------------------------------------------------------
+    # Lógica
+    # ------------------------------------------------------------------
+    def _abrir_ifc(self):
+        path = filedialog.askopenfilename(
+            title="Abrir archivo IFC",
+            filetypes=[("Archivos IFC", "*.ifc"), ("Todos los archivos", "*.*")],
+        )
+        if not path:
+            return
+        self.lbl_archivo.config(text="Cargando…", fg=theme.FG_SECONDARY)
+        self.status_elementos.config(text="")
+        self.status_elemento_activo.config(text="")
+        threading.Thread(target=self._cargar_ifc, args=(path,), daemon=True).start()
+
+    def _cargar_ifc(self, path: str):
+        try:
+            self.loader.open(path)
+            nodos = self.loader.get_tree()
+            total = self._contar_elementos(nodos)
+            self.root.after(0, lambda: self._actualizar_arbol(nodos, path, total))
+        except Exception as e:
+            self.root.after(0, lambda: messagebox.showerror("Error al cargar", str(e)))
+            self.root.after(0, lambda: self.lbl_archivo.config(
+                text="Error al cargar el archivo", fg="#e06c75"
+            ))
+
+    def _actualizar_arbol(self, nodos: list, path: str, total: int):
+        self.tree_panel.load(nodos)
+        nombre = path.split("/")[-1]
+        self.root.title(f"AppCLI — {nombre}")
+        self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
+        self.status_elementos.config(text=f"{total} elementos cargados")
+
+    def _contar_elementos(self, nodos: list) -> int:
+        total = 0
+        for nodo in nodos:
+            total += 1 + self._contar_elementos(nodo["hijos"])
+        return total
+
+    def _on_elemento_seleccionado(self, elemento):
+        props = self.loader.get_properties(elemento)
+        self.props_panel.show(props)
+        nombre = elemento.get_info().get("Name") or elemento.is_a()
+        tipo = elemento.is_a()
+        self.status_elemento_activo.config(
+            text=f"  ·  {nombre}  [{tipo}]",
+            fg=theme.FG_PRIMARY,
+        )
 
     def run(self):
         self.root.mainloop()

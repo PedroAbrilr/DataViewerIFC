@@ -11,6 +11,7 @@ from appcli.ui.tree_panel import TreePanel
 from appcli.ui.props_panel import PropsPanel
 from appcli.ui.ai_console import AIConsole
 from appcli.ifc.loader import IFCLoader
+from appcli.ai.ollama_client import OllamaClient
 
 MARGIN = 10
 
@@ -21,10 +22,12 @@ class App:
         self.root.title("AppCLI — IFC Viewer")
         self.root.geometry("1280x860")
         self.loader = IFCLoader()
+        self.ollama = OllamaClient()
         theme.apply(self.root)
         self._build_toolbar()
         self._build_statusbar()
         self._build_layout()
+        self._iniciar_ollama()
 
     # ------------------------------------------------------------------
     # Toolbar
@@ -117,13 +120,23 @@ class App:
         tk.Frame(outer, bg=theme.BORDER, height=1).pack(fill=tk.X, pady=(MARGIN, 0))
 
         # Panel inferior: consola IA
-        self.ai_console = AIConsole(outer)
+        self.ai_console = AIConsole(outer, ollama_client=self.ollama)
         self.ai_console.frame.pack(fill=tk.BOTH, expand=False,
                                    side=tk.BOTTOM, pady=(0, 0))
 
     # ------------------------------------------------------------------
     # Lógica
     # ------------------------------------------------------------------
+    def _iniciar_ollama(self):
+        """Arranca Ollama en segundo plano al iniciar la app."""
+        def _run():
+            self.ollama.ensure_running(
+                on_status=lambda msg: self.root.after(
+                    0, lambda m=msg: self.ai_console.append(m)
+                )
+            )
+        threading.Thread(target=_run, daemon=True).start()
+
     def _abrir_ifc(self):
         path = filedialog.askopenfilename(
             title="Abrir archivo IFC",
@@ -154,6 +167,7 @@ class App:
         self.root.title(f"AppCLI — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
         self.status_elementos.config(text=f"{total} elementos cargados")
+        self.ai_console.set_archivo(nombre, total)
 
     def _contar_elementos(self, nodos: list) -> int:
         total = 0
@@ -164,6 +178,7 @@ class App:
     def _on_elemento_seleccionado(self, elemento):
         props = self.loader.get_properties(elemento)
         self.props_panel.show(props)
+        self.ai_console.set_context(elemento, props)
         nombre = elemento.get_info().get("Name") or elemento.is_a()
         tipo = elemento.is_a()
         self.status_elemento_activo.config(

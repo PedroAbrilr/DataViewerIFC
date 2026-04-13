@@ -1,9 +1,23 @@
+# Entorno virtual
 .venv/
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+.eggs/
+
+# Archivos IFC
+*.ifc
+
+# Distribución y build
 dist/
 build/
-.eggs/
-*.ifc
+
+# Binario portable de Ollama
+/bin/
+src/appcli/bin/ollama
+
+# Modelos de Ollama (pueden ocupar varios GB)
+models/

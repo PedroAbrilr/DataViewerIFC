@@ -46,6 +46,12 @@ class PropsPanel:
             foreground=theme.FG_HEADING,
             font=theme.FONT_BOLD,
         )
+        # Tag para valores que difieren entre elementos seleccionados
+        self.table.tag_configure(
+            "varios",
+            background="#3d2020",
+            foreground="#c97070",
+        )
 
     def show(self, grupos: list):
         self.table.delete(*self.table.get_children())
@@ -55,8 +61,10 @@ class PropsPanel:
                 values=("", ""), open=True, tags=("pset",),
             )
             for prop in grupo["props"]:
+                tags = ("varios",) if prop.get("varios") else ()
                 self.table.insert(
                     nodo_pset, tk.END,
                     text=f"    {prop['nombre']}",
                     values=(prop["valor"], prop["unidad"]),
+                    tags=tags,
                 )

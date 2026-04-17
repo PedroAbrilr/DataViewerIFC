@@ -27,7 +27,7 @@ class TreePanel:
         container = ttk.Frame(self.frame)
         container.pack(fill=tk.BOTH, expand=True)
 
-        self.tree = ttk.Treeview(container, show="tree")
+        self.tree = ttk.Treeview(container, show="tree", selectmode="extended")
         scrollbar = ttk.Scrollbar(container, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
@@ -52,5 +52,6 @@ class TreePanel:
             return
         seleccion = self.tree.selection()
         if seleccion:
-            elemento = self._elementos.get(seleccion[0])
-            self.on_select(elemento)
+            elementos = [self._elementos[iid] for iid in seleccion if iid in self._elementos]
+            if elementos:
+                self.on_select(elementos)

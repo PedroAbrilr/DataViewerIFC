@@ -12,6 +12,8 @@ from appcli.ui.props_panel import PropsPanel
 from appcli.ui.ai_console import AIConsole
 from appcli.ifc.loader import IFCLoader
 from appcli.ai.ollama_client import OllamaClient
+from appcli.ai.ifc_tools import IFCTools
+from appcli.ai.tool_runner import ToolRunner
 
 MARGIN = 10
 
@@ -21,8 +23,9 @@ class App:
         self.root = ThemedTk(theme="equilux")
         self.root.title("AppCLI — IFC Viewer")
         self.root.geometry("1280x860")
-        self.loader = IFCLoader()
-        self.ollama = OllamaClient()
+        self.loader      = IFCLoader()
+        self.ollama      = OllamaClient()
+        self.tool_runner = ToolRunner(self.ollama)
         theme.apply(self.root)
         self._build_toolbar()
         self._build_statusbar()
@@ -120,7 +123,7 @@ class App:
         tk.Frame(outer, bg=theme.BORDER, height=1).pack(fill=tk.X, pady=(MARGIN, 0))
 
         # Panel inferior: consola IA
-        self.ai_console = AIConsole(outer, ollama_client=self.ollama)
+        self.ai_console = AIConsole(outer, tool_runner=self.tool_runner)
         self.ai_console.frame.pack(fill=tk.BOTH, expand=False,
                                    side=tk.BOTTOM, pady=(0, 0))
 
@@ -167,6 +170,7 @@ class App:
         self.root.title(f"AppCLI — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
         self.status_elementos.config(text=f"{total} elementos cargados")
+        self.tool_runner._ifc_tools = IFCTools(self.loader)
         self.ai_console.set_archivo(nombre, total)
 
     def _contar_elementos(self, nodos: list) -> int:
@@ -175,16 +179,76 @@ class App:
             total += 1 + self._contar_elementos(nodo["hijos"])
         return total
 
-    def _on_elemento_seleccionado(self, elemento):
-        props = self.loader.get_properties(elemento)
+    def _on_elemento_seleccionado(self, elementos):
+        threading.Thread(
+            target=self._cargar_propiedades,
+            args=(elementos,),
+            daemon=True,
+        ).start()
+
+    def _cargar_propiedades(self, elementos):
+        elemento = elementos[-1]
+        props_activo = self.loader.get_properties(elemento)
+        if len(elementos) == 1:
+            props = props_activo
+        else:
+            todos_props = [self.loader.get_properties(e) for e in elementos]
+            props = self._merge_props(todos_props)
+        self.root.after(0, lambda: self._actualizar_seleccion(elementos, elemento, props))
+
+    def _actualizar_seleccion(self, elementos, elemento, props):
         self.props_panel.show(props)
-        self.ai_console.set_context(elemento, props)
+        self.ai_console.set_context(elementos, props)
         nombre = elemento.get_info().get("Name") or elemento.is_a()
         tipo = elemento.is_a()
-        self.status_elemento_activo.config(
-            text=f"  ·  {nombre}  [{tipo}]",
-            fg=theme.FG_PRIMARY,
-        )
+        if len(elementos) > 1:
+            self.status_elemento_activo.config(
+                text=f"  ·  {len(elementos)} elementos seleccionados  (activo: {nombre}  [{tipo}])",
+                fg=theme.FG_PRIMARY,
+            )
+        else:
+            self.status_elemento_activo.config(
+                text=f"  ·  {nombre}  [{tipo}]",
+                fg=theme.FG_PRIMARY,
+            )
+
+    def _merge_props(self, todos_props: list) -> list:
+        """Fusiona listas de grupos de propiedades de varios elementos.
+
+        Las propiedades con el mismo valor en todos los elementos se muestran
+        con normalidad; las que difieren llevan varios=True.
+        """
+        # {pset: {nombre_prop: {valores, unidades}}}
+        merged: dict = {}
+        orden_psets: list = []
+        for grupos in todos_props:
+            for grupo in grupos:
+                pset = grupo["pset"]
+                if pset not in merged:
+                    merged[pset] = {}
+                    orden_psets.append(pset)
+                for prop in grupo["props"]:
+                    nombre = prop["nombre"]
+                    if nombre not in merged[pset]:
+                        merged[pset][nombre] = {"valores": set(), "unidades": set()}
+                    merged[pset][nombre]["valores"].add(str(prop["valor"]))
+                    merged[pset][nombre]["unidades"].add(str(prop["unidad"]))
+
+        result = []
+        for pset in orden_psets:
+            props_list = []
+            for nombre, data in merged[pset].items():
+                varios = len(data["valores"]) > 1
+                valor = list(data["valores"])[0] if not varios else "varios..."
+                unidad = list(data["unidades"])[0] if len(data["unidades"]) == 1 else ""
+                props_list.append({
+                    "nombre": nombre,
+                    "valor": valor,
+                    "unidad": unidad,
+                    "varios": varios,
+                })
+            result.append({"pset": pset, "props": props_list})
+        return result
 
     def run(self):
         self.root.mainloop()

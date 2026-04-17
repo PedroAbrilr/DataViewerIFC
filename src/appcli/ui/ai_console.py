@@ -2,25 +2,20 @@
 
 import threading
 import tkinter as tk
-from tkinter import ttk
 
 from appcli.ui import theme
 
-SYSTEM_BASE = (
-    "Eres un asistente experto en BIM e IFC. "
-    "Responde de forma concisa y en el mismo idioma en que te hagan la pregunta."
-)
-
 
 class AIConsole:
-    def __init__(self, parent, ollama_client=None):
+    def __init__(self, parent, tool_runner=None):
         self.frame = tk.Frame(parent, bg=theme.BG_DARK, height=220)
         self.frame.pack_propagate(False)
-        self._client = ollama_client
-        self._context_archivo = ""   # archivo IFC abierto
-        self._context_elemento = ""  # elemento seleccionado
+        self._runner = tool_runner
         self._procesando = False
+        self._cancelado = False
         self._build()
+        if tool_runner:
+            self.lbl_modelo.config(text=tool_runner._client.model)
 
     # ------------------------------------------------------------------
     # Construcción de la UI
@@ -64,6 +59,7 @@ class AIConsole:
             foreground="#e06c75")
         self.output.tag_configure("info",
             foreground=theme.FG_SECONDARY)
+
         # Barra de entrada (se empaqueta ANTES que output para que pack
         # reserve su espacio antes de expandir el área de texto)
         input_bar = tk.Frame(self.frame, bg=theme.BG_DARK, height=46)
@@ -101,79 +97,107 @@ class AIConsole:
         )
         self.send_btn.pack(side=tk.RIGHT, padx=(0, 10), pady=8)
 
+        self.stop_btn = tk.Button(
+            input_bar,
+            text="Detener",
+            command=self._on_stop,
+            bg="#c0392b",
+            fg="#ffffff",
+            activebackground="#a93226",
+            activeforeground="#ffffff",
+            font=theme.FONT_BOLD,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=16,
+        )
+        # oculto por defecto; se muestra al procesar
+
     # ------------------------------------------------------------------
     # API pública
     # ------------------------------------------------------------------
-    def set_client(self, client):
-        """Asigna el cliente Ollama y muestra el modelo activo."""
-        self._client = client
-        self.lbl_modelo.config(text=client.model)
+    def set_runner(self, runner):
+        """Asigna el ToolRunner y muestra el modelo activo."""
+        self._runner = runner
+        self.lbl_modelo.config(text=runner._client.model)
 
     def set_archivo(self, nombre: str, total: int):
-        """Actualiza el contexto con el archivo IFC activo."""
-        self._context_archivo = f"Archivo IFC abierto: {nombre} ({total} elementos cargados)."
+        """Notifica al runner y muestra el mensaje en consola."""
+        if self._runner:
+            self._runner.set_archivo(nombre, total)
         self._append(f"[Archivo: {nombre}  —  {total} elementos]\n", "info")
 
-    def set_context(self, elemento, props: list):
-        """Actualiza el contexto IFC con el elemento seleccionado."""
-        if not elemento:
-            self._context_elemento = ""
+    def set_context(self, elementos: list, props: list):
+        """Notifica al runner y muestra el elemento activo en consola."""
+        if self._runner:
+            self._runner.set_seleccion(elementos, props)
+        if not elementos:
             return
-        info = elemento.get_info()
-        nombre = info.get("Name") or elemento.is_a()
-        tipo = elemento.is_a()
-        lineas = [f"Elemento seleccionado en la aplicación: {nombre} ({tipo})"]
-        for grupo in props:
-            lineas.append(f"\n{grupo['pset']}:")
-            for p in grupo["props"]:
-                unidad = f" {p['unidad']}" if p["unidad"] else ""
-                lineas.append(f"  {p['nombre']}: {p['valor']}{unidad}")
-        self._context_elemento = "\n".join(lineas)
-        self._append(f"[Elemento: {nombre}  {tipo}]\n", "info")
+        if len(elementos) == 1:
+            info   = elementos[0].get_info()
+            nombre = info.get("Name") or elementos[0].is_a()
+            tipo   = elementos[0].is_a()
+            self._append(f"[Elemento: {nombre}  {tipo}]\n", "info")
+        else:
+            nombres = ", ".join(
+                (e.get_info().get("Name") or e.is_a()) for e in elementos[:3]
+            )
+            sufijo = f" y {len(elementos) - 3} más" if len(elementos) > 3 else ""
+            self._append(f"[{len(elementos)} elementos: {nombres}{sufijo}]\n", "info")
 
     # ------------------------------------------------------------------
-    # Envío y streaming
+    # Envío y respuesta
     # ------------------------------------------------------------------
+    def _on_stop(self):
+        """Cancela la respuesta en curso y desbloquea la UI."""
+        self._cancelado = True
+        self._set_procesando(False)
+        self._append("[Respuesta cancelada]\n", "info")
+
     def _on_send(self, event=None):
         if self._procesando:
             return
         texto = self.input.get().strip()
         if not texto:
             return
-        if self._client is None:
+        if self._runner is None:
             self._append("Ollama no está configurado.\n", "error")
             return
 
         self.input.delete(0, tk.END)
         self._append(f"▶ {texto}\n", "usuario")
         self._set_procesando(True)
-
-        system = SYSTEM_BASE
-        if self._context_archivo:
-            system += f"\n\n{self._context_archivo}"
-        if self._context_elemento:
-            system += f"\n\n{self._context_elemento}"
-
+        self._cancelado = False
         threading.Thread(
             target=self._stream_respuesta,
-            args=(texto, system),
+            args=(texto,),
             daemon=True,
         ).start()
 
-    def _stream_respuesta(self, prompt: str, system: str):
+    def _stream_respuesta(self, prompt: str):
         root = self.frame.winfo_toplevel()
+        primer_token = True
+
+        def on_token(texto):
+            nonlocal primer_token
+            if self._cancelado:
+                return
+            if primer_token:
+                root.after(0, lambda: self._append("", "ia"))
+                primer_token = False
+            root.after(0, lambda t=texto: self._append_token(t))
+
+        def on_tool_call(nombre, _args):
+            root.after(0, lambda n=nombre: self._append(f"[llamando a {n}...]\n", "info"))
+
         try:
-            primer_token = True
-            for fragmento in self._client.stream(prompt, system=system):
-                if primer_token:
-                    root.after(0, lambda: self._append("", "ia"))
-                    primer_token = False
-                root.after(0, lambda f=fragmento: self._append_token(f))
-            root.after(0, lambda: self._append("\n", "ia"))
+            self._runner.chat(prompt, on_token, on_tool_call, lambda: self._cancelado)
         except Exception as e:
             root.after(0, lambda: self._append(f"Error: {e}\n", "error"))
         finally:
-            root.after(0, lambda: self._set_procesando(False))
+            if not self._cancelado:
+                root.after(0, lambda: self._append("\n", "ia"))
+                root.after(0, lambda: self._set_procesando(False))
 
     # ------------------------------------------------------------------
     # Helpers de UI
@@ -192,9 +216,14 @@ class AIConsole:
 
     def _set_procesando(self, valor: bool):
         self._procesando = valor
-        estado = tk.DISABLED if valor else tk.NORMAL
-        self.send_btn.config(state=estado)
-        self.input.config(state=estado)
+        if valor:
+            self.send_btn.pack_forget()
+            self.stop_btn.pack(side=tk.RIGHT, padx=(0, 10), pady=8)
+            self.input.config(state=tk.DISABLED)
+        else:
+            self.stop_btn.pack_forget()
+            self.send_btn.pack(side=tk.RIGHT, padx=(0, 10), pady=8)
+            self.input.config(state=tk.NORMAL)
 
     def append(self, text: str):
         """API de compatibilidad para añadir texto externo."""

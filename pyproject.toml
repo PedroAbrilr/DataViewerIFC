@@ -9,8 +9,11 @@ dependencies = [
     "ttkthemes",
 ]
 
-[project.scripts]
+[project.gui-scripts]
 appcli = "appcli.main:main"
+
+[project.scripts]
+appcli-install = "appcli.installer:main"
 
 [build-system]
 requires = ["setuptools>=45"]
@@ -23,7 +26,7 @@ dev = ["pytest"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-appcli = ["data/*", "bin/ollama"]
+appcli = ["data/*", "bin/ollama", "installer.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

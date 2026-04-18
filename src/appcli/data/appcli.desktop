@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AppCLI IFC Viewer
+Comment=Visor de archivos IFC con consola de IA local
+Exec=appcli
+Terminal=false
+Categories=Engineering;Science;

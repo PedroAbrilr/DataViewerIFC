@@ -1,6 +1,7 @@
 """Cliente para comunicación con Ollama en local."""
 
 import os
+import platform
 import subprocess
 import tempfile
 import time
@@ -8,30 +9,34 @@ from pathlib import Path
 
 import ollama
 
-# Rutas del entorno portable
+from appcli import config as _config
+
 _PKG_DIR      = Path(__file__).parent.parent          # src/appcli/
-_BIN_LOCAL    = _PKG_DIR / "bin" / "ollama"
-_MODELS_DIR   = _PKG_DIR.parents[1] / "models"        # junto al paquete instalado
-_BASE_MODEL    = "qwen2.5:1.5b"
 _CUSTOM_MODEL  = "ifc-assistant"
 _MODELFILE     = _PKG_DIR / "data" / "Modelfile"
 _MANUAL_FILE   = _PKG_DIR / "data" / "manual_usuario.md"
 _DEFAULT_MODEL = _CUSTOM_MODEL
 
 
+def _user_ollama_bin() -> Path:
+    if platform.system() == "Windows":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    else:
+        base = Path.home() / ".local" / "share"
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    return base / "appcli" / "bin" / f"ollama{suffix}"
+
+
 def _ollama_bin() -> str:
-    """Devuelve la ruta al binario de Ollama: local primero, luego sistema."""
-    if _BIN_LOCAL.exists() and os.access(_BIN_LOCAL, os.X_OK):
-        return str(_BIN_LOCAL)
+    """Devuelve la ruta al binario de Ollama: directorio de usuario → sistema."""
+    user_bin = _user_ollama_bin()
+    if user_bin.exists() and os.access(user_bin, os.X_OK):
+        return str(user_bin)
     return "ollama"
 
 
-def _env_portable() -> dict:
-    """Variables de entorno para usar el directorio de modelos del proyecto."""
-    env = os.environ.copy()
-    if _BIN_LOCAL.exists():
-        env["OLLAMA_MODELS"] = str(_MODELS_DIR.resolve())
-    return env
+def _base_model() -> str:
+    return _config.load().get("base_model", "qwen2.5:1.5b")
 
 
 class OllamaClient:
@@ -58,12 +63,10 @@ class OllamaClient:
         if not self._ping():
             status("Iniciando Ollama...")
             try:
-                _MODELS_DIR.mkdir(parents=True, exist_ok=True)
                 self._proceso = subprocess.Popen(
                     [_ollama_bin(), "serve"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    env=_env_portable(),
                 )
             except FileNotFoundError:
                 status("Error: Ollama no está instalado. Descárgalo en https://ollama.com")
@@ -81,21 +84,21 @@ class OllamaClient:
             status("Ollama iniciado.")
 
         # 2. Descargar el modelo base si no está disponible
+        base_model = _base_model()
         modelos = self.modelos_disponibles()
-        base_disponible = any(_BASE_MODEL.split(":")[0] in m for m in modelos)
+        base_disponible = any(base_model.split(":")[0] in m for m in modelos)
 
         if not base_disponible:
-            status(f"Descargando modelo base {_BASE_MODEL}... (puede tardar varios minutos)")
+            status(f"Descargando modelo base {base_model}... (puede tardar varios minutos)")
             try:
                 subprocess.run(
-                    [_ollama_bin(), "pull", _BASE_MODEL],
+                    [_ollama_bin(), "pull", base_model],
                     check=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    env=_env_portable(),
                 )
             except subprocess.CalledProcessError:
-                status(f"Error al descargar {_BASE_MODEL}.")
+                status(f"Error al descargar {base_model}.")
                 return False
 
         # 3. Crear el modelo personalizado desde el Modelfile si no existe
@@ -105,6 +108,7 @@ class OllamaClient:
             status(f"Creando modelo {_CUSTOM_MODEL}...")
             try:
                 modelfile_content = _MODELFILE.read_text(encoding="utf-8")
+                modelfile_content = modelfile_content.replace("{{BASE_MODEL}}", base_model)
                 if "{{MANUAL_USUARIO}}" in modelfile_content:
                     if _MANUAL_FILE.exists():
                         manual = _MANUAL_FILE.read_text(encoding="utf-8")
@@ -124,7 +128,6 @@ class OllamaClient:
                         check=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
-                        env=_env_portable(),
                     )
                 finally:
                     Path(tmp_path).unlink(missing_ok=True)
@@ -132,7 +135,7 @@ class OllamaClient:
                 status(f"Modelo {_CUSTOM_MODEL} listo.")
             except subprocess.CalledProcessError:
                 status(f"Error al crear {_CUSTOM_MODEL}. Usando modelo base.")
-                self.model = _BASE_MODEL
+                self.model = base_model
         else:
             status(f"Modelo {_CUSTOM_MODEL} listo.")
 

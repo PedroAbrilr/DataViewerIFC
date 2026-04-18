@@ -26,7 +26,7 @@ dev = ["pytest"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-appcli = ["data/*", "bin/ollama", "installer.py"]
+appcli = ["data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

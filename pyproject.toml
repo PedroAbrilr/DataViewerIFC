@@ -21,6 +21,9 @@ build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
 dev = ["pytest"]
+claude = ["anthropic>=0.40.0"]
+openai = ["openai>=1.0.0"]
+cloud = ["anthropic>=0.40.0", "openai>=1.0.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

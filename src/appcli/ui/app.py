@@ -6,6 +6,7 @@ from tkinter import ttk, filedialog, messagebox
 
 from ttkthemes import ThemedTk
 
+from appcli import config as _config
 from appcli.ui import theme
 from appcli.ui.tree_panel import TreePanel
 from appcli.ui.props_panel import PropsPanel
@@ -14,8 +15,22 @@ from appcli.ifc.loader import IFCLoader
 from appcli.ai.ollama_client import OllamaClient
 from appcli.ai.ifc_tools import IFCTools
 from appcli.ai.tool_runner import ToolRunner
+from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend
 
 MARGIN = 10
+
+# Modelos disponibles por proveedor
+_MODELOS = {
+    "ollama":  ["ifc-assistant"],   # se completa en runtime con modelos instalados
+    "claude":  ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"],
+    "openai":  ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+}
+
+_LABELS = {
+    "ollama": "Ollama (local)",
+    "claude": "Claude (Anthropic)",
+    "openai": "ChatGPT (OpenAI)",
+}
 
 
 class App:
@@ -23,14 +38,29 @@ class App:
         self.root = ThemedTk(theme="equilux")
         self.root.title("AppCLI — IFC Viewer")
         self.root.geometry("1280x860")
-        self.loader      = IFCLoader()
-        self.ollama      = OllamaClient()
-        self.tool_runner = ToolRunner(self.ollama)
+        self.loader = IFCLoader()
+        self.ollama = OllamaClient()
+
+        cfg = _config.load()
+        self._backend_id = cfg.get("active_backend", "ollama")
+        self.backend = self._crear_backend(self._backend_id, cfg)
+        self.tool_runner = ToolRunner(self.backend)
+
         theme.apply(self.root)
         self._build_toolbar()
         self._build_statusbar()
         self._build_layout()
-        self._iniciar_ollama()
+        self._iniciar_ia()
+
+    # ------------------------------------------------------------------
+    # Creación de backend
+    # ------------------------------------------------------------------
+    def _crear_backend(self, backend_id: str, cfg: dict):
+        if backend_id == "claude":
+            return ClaudeBackend(model=cfg.get("claude_model", "claude-sonnet-4-6"))
+        if backend_id == "openai":
+            return OpenAIBackend(model=cfg.get("openai_model", "gpt-4o-mini"))
+        return OllamaBackend(model=cfg.get("ollama_model", "ifc-assistant"))
 
     # ------------------------------------------------------------------
     # Toolbar
@@ -68,7 +98,154 @@ class App:
 
         self.root.bind("<Control-o>", lambda e: self._abrir_ifc())
 
+        # Botón de selección de backend (lado derecho)
+        self.btn_backend = tk.Button(
+            bar,
+            text=f"IA: {self.backend.display_name}",
+            command=self._abrir_dialogo_backend,
+            bg=theme.BG_SURFACE,
+            fg=theme.FG_PRIMARY,
+            activebackground=theme.BG_HEADER,
+            activeforeground=theme.FG_PRIMARY,
+            font=theme.FONT_SMALL,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=12,
+            pady=6,
+        )
+        self.btn_backend.pack(side=tk.RIGHT, padx=(0, MARGIN), pady=7)
+
         ttk.Separator(self.root, orient=tk.HORIZONTAL).pack(fill=tk.X)
+
+    # ------------------------------------------------------------------
+    # Diálogo de selección de backend
+    # ------------------------------------------------------------------
+    def _abrir_dialogo_backend(self):
+        cfg = _config.load()
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Cambiar asistente IA")
+        dlg.geometry("420x310")
+        dlg.resizable(False, False)
+        dlg.configure(bg=theme.BG_PANEL)
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        tk.Label(
+            dlg, text="Asistente IA", bg=theme.BG_PANEL,
+            fg=theme.FG_HEADING, font=theme.FONT_BOLD,
+        ).pack(anchor="w", padx=20, pady=(18, 6))
+
+        var_backend = tk.StringVar(value=self._backend_id)
+        var_modelo  = tk.StringVar()
+
+        # Frame de opciones
+        frame_opts = tk.Frame(dlg, bg=theme.BG_PANEL)
+        frame_opts.pack(fill=tk.X, padx=20)
+
+        lbl_aviso = tk.Label(
+            dlg, text="", bg=theme.BG_PANEL,
+            fg="#e06c75", font=theme.FONT_SMALL, wraplength=380,
+        )
+        lbl_aviso.pack(anchor="w", padx=20, pady=(4, 0))
+
+        combo_modelo = ttk.Combobox(
+            dlg, textvariable=var_modelo, state="readonly", width=38,
+        )
+        combo_modelo.pack(anchor="w", padx=20, pady=(8, 0))
+
+        def _actualizar_combo(*_):
+            bid = var_backend.get()
+            modelos = list(_MODELOS.get(bid, []))
+            # Para Ollama, añadir el modelo base si no está ya
+            if bid == "ollama":
+                base = cfg.get("base_model", "")
+                if base and base not in modelos:
+                    modelos.append(base)
+
+            combo_modelo["values"] = modelos
+            # Seleccionar el modelo actual para este backend
+            modelo_actual = {
+                "ollama": cfg.get("ollama_model", "ifc-assistant"),
+                "claude": cfg.get("claude_model", "claude-sonnet-4-6"),
+                "openai": cfg.get("openai_model", "gpt-4o-mini"),
+            }.get(bid, modelos[0] if modelos else "")
+            var_modelo.set(modelo_actual if modelo_actual in modelos else (modelos[0] if modelos else ""))
+
+            # Comprobar disponibilidad
+            backend_tmp = self._crear_backend(bid, {
+                "ollama_model": var_modelo.get(),
+                "claude_model": var_modelo.get(),
+                "openai_model": var_modelo.get(),
+            })
+            ok, msg = backend_tmp.is_available()
+            lbl_aviso.config(text=msg if not ok else "")
+
+        for bid, label in _LABELS.items():
+            tk.Radiobutton(
+                frame_opts,
+                text=label,
+                variable=var_backend,
+                value=bid,
+                command=_actualizar_combo,
+                bg=theme.BG_PANEL,
+                fg=theme.FG_PRIMARY,
+                selectcolor=theme.BG_SURFACE,
+                activebackground=theme.BG_PANEL,
+                font=theme.FONT_UI,
+            ).pack(anchor="w", pady=2)
+
+        _actualizar_combo()
+
+        # Botones
+        frame_btn = tk.Frame(dlg, bg=theme.BG_PANEL)
+        frame_btn.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=16)
+
+        def _aplicar():
+            bid    = var_backend.get()
+            modelo = var_modelo.get()
+            cfg_update = {
+                "active_backend": bid,
+                f"{bid}_model": modelo,
+            }
+            _config.save(cfg_update)
+            nuevo_cfg = _config.load()
+            nuevo_backend = self._crear_backend(bid, nuevo_cfg)
+
+            ok, msg = nuevo_backend.is_available()
+            if not ok:
+                messagebox.showwarning(
+                    "Backend no disponible",
+                    f"{msg}\n\nPuedes seguir usando este backend, pero las consultas fallarán "
+                    "hasta que el problema se resuelva.",
+                    parent=dlg,
+                )
+
+            self._backend_id = bid
+            self.backend = nuevo_backend
+            self.tool_runner._backend = self.backend
+            self.btn_backend.config(text=f"IA: {self.backend.display_name}")
+
+            if bid == "ollama":
+                self._iniciar_ollama()
+
+            dlg.destroy()
+
+        tk.Button(
+            frame_btn, text="Aplicar", command=_aplicar,
+            bg=theme.ACCENT, fg="#ffffff",
+            activebackground="#3a82d6", activeforeground="#ffffff",
+            font=theme.FONT_BOLD, relief="flat", bd=0,
+            cursor="hand2", padx=14, pady=5,
+        ).pack(side=tk.RIGHT)
+
+        tk.Button(
+            frame_btn, text="Cancelar", command=dlg.destroy,
+            bg=theme.BG_SURFACE, fg=theme.FG_PRIMARY,
+            activebackground=theme.BG_HEADER,
+            font=theme.FONT_UI, relief="flat", bd=0,
+            cursor="hand2", padx=14, pady=5,
+        ).pack(side=tk.RIGHT, padx=(0, 8))
 
     # ------------------------------------------------------------------
     # Status bar
@@ -105,33 +282,32 @@ class App:
     # Layout principal
     # ------------------------------------------------------------------
     def _build_layout(self):
-        # Contenedor con márgenes
         outer = tk.Frame(self.root, bg=theme.BG_DARK)
         outer.pack(fill=tk.BOTH, expand=True,
                    padx=MARGIN, pady=(MARGIN, MARGIN))
 
-        # Panel superior: árbol + propiedades
         top_paned = ttk.PanedWindow(outer, orient=tk.HORIZONTAL)
         top_paned.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
 
-        self.tree_panel = TreePanel(top_paned, on_select=self._on_elemento_seleccionado)
+        self.tree_panel  = TreePanel(top_paned, on_select=self._on_elemento_seleccionado)
         self.props_panel = PropsPanel(top_paned)
-        top_paned.add(self.tree_panel.frame, weight=1)
+        top_paned.add(self.tree_panel.frame,  weight=1)
         top_paned.add(self.props_panel.frame, weight=2)
 
-        # Separador
         tk.Frame(outer, bg=theme.BORDER, height=1).pack(fill=tk.X, pady=(MARGIN, 0))
 
-        # Panel inferior: consola IA
         self.ai_console = AIConsole(outer, tool_runner=self.tool_runner)
         self.ai_console.frame.pack(fill=tk.BOTH, expand=False,
                                    side=tk.BOTTOM, pady=(0, 0))
 
     # ------------------------------------------------------------------
-    # Lógica
+    # Lógica de IA
     # ------------------------------------------------------------------
+    def _iniciar_ia(self):
+        if self._backend_id == "ollama":
+            self._iniciar_ollama()
+
     def _iniciar_ollama(self):
-        """Arranca Ollama en segundo plano al iniciar la app."""
         def _run():
             self.ollama.ensure_running(
                 on_status=lambda msg: self.root.after(
@@ -140,6 +316,9 @@ class App:
             )
         threading.Thread(target=_run, daemon=True).start()
 
+    # ------------------------------------------------------------------
+    # Carga de archivos IFC
+    # ------------------------------------------------------------------
     def _abrir_ifc(self):
         path = filedialog.askopenfilename(
             title="Abrir archivo IFC",
@@ -200,7 +379,7 @@ class App:
         self.props_panel.show(props)
         self.ai_console.set_context(elementos, props)
         nombre = elemento.get_info().get("Name") or elemento.is_a()
-        tipo = elemento.is_a()
+        tipo   = elemento.is_a()
         if len(elementos) > 1:
             self.status_elemento_activo.config(
                 text=f"  ·  {len(elementos)} elementos seleccionados  (activo: {nombre}  [{tipo}])",
@@ -213,12 +392,6 @@ class App:
             )
 
     def _merge_props(self, todos_props: list) -> list:
-        """Fusiona listas de grupos de propiedades de varios elementos.
-
-        Las propiedades con el mismo valor en todos los elementos se muestran
-        con normalidad; las que difieren llevan varios=True.
-        """
-        # {pset: {nombre_prop: {valores, unidades}}}
         merged: dict = {}
         orden_psets: list = []
         for grupos in todos_props:
@@ -238,12 +411,12 @@ class App:
         for pset in orden_psets:
             props_list = []
             for nombre, data in merged[pset].items():
-                varios = len(data["valores"]) > 1
-                valor = list(data["valores"])[0] if not varios else "varios..."
-                unidad = list(data["unidades"])[0] if len(data["unidades"]) == 1 else ""
+                varios  = len(data["valores"]) > 1
+                valor   = list(data["valores"])[0] if not varios else "varios..."
+                unidad  = list(data["unidades"])[0] if len(data["unidades"]) == 1 else ""
                 props_list.append({
                     "nombre": nombre,
-                    "valor": valor,
+                    "valor":  valor,
                     "unidad": unidad,
                     "varios": varios,
                 })

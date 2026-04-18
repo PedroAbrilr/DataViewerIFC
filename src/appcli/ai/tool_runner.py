@@ -1,34 +1,33 @@
-"""Orquestador de tool calling entre Ollama e IFCTools.
+"""Orquestador de tool calling entre el backend de IA e IFCTools.
 
 ToolRunner:
   - mantiene el contexto del archivo IFC y del elemento seleccionado
-  - construye el system prompt (versión compacta: una línea por selección)
-  - añade 'obtener_seleccion' a las herramientas cuando hay selección activa
-  - ejecuta el bucle de tool calling (Ollama → herramientas → Ollama…)
+  - construye el system prompt
+  - ejecuta el bucle de tool calling (backend → herramientas → backend…)
   - entrega los tokens finales vía callback
 """
 
 from collections import defaultdict
 
-import ollama as _ollama
+from appcli.ai.backends.base import AIBackend
 
 _SYSTEM_BASE = (
     "Eres un asistente experto en BIM e IFC. "
     "Responde de forma concisa y en el mismo idioma en que te hagan la pregunta."
 )
 
-_MAX_ITERACIONES = 5   # rondas máximas de tool calling por consulta
-_BUFFER_TOKENS   = 8   # tokens agrupados antes de entregar al callback
+_MAX_ITERACIONES = 5
+_BUFFER_TOKENS   = 8
 
 
 class ToolRunner:
-    def __init__(self, ollama_client, ifc_tools=None):
-        self._client    = ollama_client
+    def __init__(self, backend: AIBackend, ifc_tools=None):
+        self._backend   = backend
         self._ifc_tools = ifc_tools
         self.contexto_archivo   = ""
-        self.contexto_seleccion = ""   # una línea: "Elemento seleccionado: X (IfcY)"
-        self._elementos = []           # objetos IFC seleccionados (raw)
-        self._props     = []           # grupos de propiedades (merged)
+        self.contexto_seleccion = ""
+        self._elementos = []
+        self._props     = []
 
     # ------------------------------------------------------------------
     # API de contexto
@@ -39,7 +38,6 @@ class ToolRunner:
         )
 
     def set_seleccion(self, elementos: list, props: list):
-        """Guarda la selección actual y actualiza el contexto pasivo (una línea)."""
         self._elementos = elementos
         self._props     = props
 
@@ -66,78 +64,65 @@ class ToolRunner:
         on_tool_call — callable(nombre, args) al invocar una herramienta
         should_stop  — callable() que devuelve True para cancelar
         """
-        tools = self._tools_disponibles()
-        messages = [
-            {"role": "system", "content": self._build_system(bool(tools))},
-            {"role": "user",   "content": prompt},
-        ]
+        tools   = self._tools_disponibles()
+        system  = self._build_system(bool(tools))
+        messages = [{"role": "user", "content": prompt}]
 
-        # ---- Bucle de tool calling (llamadas no-streaming) ----
-        if tools:
-            for _ in range(_MAX_ITERACIONES):
-                if should_stop and should_stop():
-                    return
-
-                response = _ollama.chat(
-                    model=self._client.model,
-                    messages=messages,
-                    tools=tools,
-                )
-
-                tool_calls = getattr(response.message, "tool_calls", None) or []
-
-                if not tool_calls:
-                    content = (response.message.content or "").strip()
-                    if content:
-                        on_token(content)
-                    return
-
-                messages.append(response.message)
-
-                for tc in tool_calls:
+        try:
+            # ---- Bucle de tool calling ----
+            if tools:
+                for _ in range(_MAX_ITERACIONES):
                     if should_stop and should_stop():
                         return
-                    nombre    = tc.function.name
-                    args      = tc.function.arguments
-                    if on_tool_call:
-                        on_tool_call(nombre, args)
-                    resultado = self._ejecutar(nombre, args)
-                    messages.append({"role": "tool", "content": resultado})
 
-        # ---- Respuesta final en streaming ----
-        if should_stop and should_stop():
-            return
+                    response = self._backend.chat_turn(system, messages, tools)
 
-        buffer = []
-        for chunk in _ollama.chat(
-            model=self._client.model,
-            messages=messages,
-            stream=True,
-        ):
+                    if not response.tool_calls:
+                        if response.content:
+                            on_token(response.content)
+                        return
+
+                    messages.append(self._backend.make_assistant_message(response))
+
+                    for tc in response.tool_calls:
+                        if should_stop and should_stop():
+                            return
+                        if on_tool_call:
+                            on_tool_call(tc.name, tc.arguments)
+                        resultado = self._ejecutar(tc.name, tc.arguments)
+                        messages.append(
+                            self._backend.make_tool_message(tc.id, tc.name, resultado)
+                        )
+
+            # ---- Respuesta final en streaming ----
             if should_stop and should_stop():
                 return
-            content = chunk.message.content
-            if content:
-                buffer.append(content)
+
+            buffer = []
+            for text in self._backend.chat_stream(system, messages):
+                if should_stop and should_stop():
+                    return
+                buffer.append(text)
                 if len(buffer) >= _BUFFER_TOKENS:
                     on_token("".join(buffer))
                     buffer.clear()
 
-        if buffer and not (should_stop and should_stop()):
-            on_token("".join(buffer))
+            if buffer and not (should_stop and should_stop()):
+                on_token("".join(buffer))
+
+        except Exception as exc:
+            on_token(f"\n[Error del asistente: {exc}]")
 
     # ------------------------------------------------------------------
     # Herramientas
     # ------------------------------------------------------------------
     def _tools_disponibles(self) -> list:
-        """Combina las herramientas IFC con obtener_seleccion si hay selección."""
         tools = self._ifc_tools.definiciones() if self._ifc_tools else []
         if self._elementos:
             tools = tools + [self._schema_seleccion()]
         return tools
 
     def _ejecutar(self, nombre: str, args: dict) -> str:
-        """Ejecuta una herramienta: intercepta obtener_seleccion, delega el resto."""
         if nombre == "obtener_seleccion":
             modo = args.get("modo", "reducido")
             return self._fmt_seleccion(modo)
@@ -165,13 +150,12 @@ class ToolRunner:
                             "type": "string",
                             "enum": ["reducido", "agrupado", "estadistico"],
                             "description": (
-                                "reducido: nombre, tipo y nombres de PSets disponibles "
-                                "(sin valores; útil para saber qué información existe). "
+                                "reducido: nombre, tipo y nombres de PSets disponibles. "
                                 "agrupado: todas las propiedades con sus valores — "
-                                "USA ESTE MODO cuando el usuario pida las propiedades, "
+                                "USA ESTE MODO cuando el usuario pida propiedades, "
                                 "características, dimensiones o detalles del elemento. "
                                 "estadistico: resumen numérico mín/máx/media/suma "
-                                "(recomendado cuando hay varios elementos seleccionados)."
+                                "(recomendado con varios elementos seleccionados)."
                             ),
                         }
                     },
@@ -193,7 +177,6 @@ class ToolRunner:
         return self._fmt_reducido()
 
     def _fmt_reducido(self) -> str:
-        """Solo nombres de PSets, sin propiedades."""
         psets = ", ".join(g["pset"] for g in self._props) or "ninguno"
 
         if len(self._elementos) == 1:
@@ -219,7 +202,6 @@ class ToolRunner:
         return "\n".join(lineas)
 
     def _fmt_agrupado(self) -> str:
-        """Nombre, tipo, GlobalId y todas las propiedades por PSet."""
         if len(self._elementos) == 1:
             e      = self._elementos[0]
             info   = e.get_info()
@@ -237,7 +219,6 @@ class ToolRunner:
                     lineas.append(f"  {p['nombre']}: {p['valor']}{unidad}")
             return "\n".join(lineas)
 
-        # Multiselección: propiedades fusionadas (merged)
         lineas = [f"{len(self._elementos)} elementos seleccionados — propiedades combinadas:"]
         for grupo in self._props:
             lineas.append(f"\n{grupo['pset']}:")
@@ -248,14 +229,12 @@ class ToolRunner:
         return "\n".join(lineas)
 
     def _fmt_estadistico(self) -> str:
-        """Resumen numérico mín/máx/media/suma por propiedad compartida."""
         if len(self._elementos) <= 1:
             return self._fmt_agrupado()
         if not self._ifc_tools:
             return "No hay modelo IFC cargado para calcular estadísticas."
 
         loader = self._ifc_tools._loader
-        # {(pset, nombre, unidad): [valores float]}
         acum = defaultdict(list)
 
         for e in self._elementos:

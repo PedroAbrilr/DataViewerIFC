@@ -5,7 +5,13 @@ from pathlib import Path
 
 _CONFIG_DIR = Path.home() / ".config" / "appcli"
 _CONFIG_FILE = _CONFIG_DIR / "config.json"
-_DEFAULTS: dict = {"base_model": "qwen2.5:1.5b"}
+_DEFAULTS: dict = {
+    "base_model":      "qwen2.5:1.5b",
+    "active_backend":  "ollama",
+    "ollama_model":    "ifc-assistant",
+    "claude_model":    "claude-sonnet-4-6",
+    "openai_model":    "gpt-4o-mini",
+}
 
 
 def load() -> dict:

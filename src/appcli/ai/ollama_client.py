@@ -15,9 +15,6 @@ _PKG_DIR      = Path(__file__).parent.parent          # src/appcli/
 _CUSTOM_MODEL  = "ifc-assistant"
 _MODELFILE     = _PKG_DIR / "data" / "Modelfile"
 _MANUAL_FILE   = _PKG_DIR / "data" / "manual_usuario.md"
-_DEFAULT_MODEL = _CUSTOM_MODEL
-
-
 def _user_ollama_bin() -> Path:
     if platform.system() == "Windows":
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
@@ -53,8 +50,7 @@ def _base_model() -> str:
 
 
 class OllamaClient:
-    def __init__(self, model: str = _DEFAULT_MODEL):
-        self.model = model
+    def __init__(self):
         self._proceso = None  # subproceso de ollama serve
 
     # ------------------------------------------------------------------
@@ -163,29 +159,6 @@ class OllamaClient:
             return True
         except Exception:
             return False
-
-    # ------------------------------------------------------------------
-    # API de consulta
-    # ------------------------------------------------------------------
-    def query(self, prompt: str, system: str = "") -> str:
-        """Envía un prompt a Ollama y devuelve la respuesta completa."""
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        response = ollama.chat(model=self.model, messages=messages)
-        return response.message.content
-
-    def stream(self, prompt: str, system: str = ""):
-        """Envía un prompt y devuelve un generador de fragmentos de texto."""
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        for chunk in ollama.chat(model=self.model, messages=messages, stream=True):
-            content = chunk.message.content
-            if content:
-                yield content
 
     def modelos_disponibles(self) -> list[str]:
         """Devuelve la lista de modelos instalados en Ollama."""

@@ -19,7 +19,7 @@ Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Fou
 | Distribución | wheel `py3-none-any` (`python -m build --wheel`) |
 | Entorno virtual | `.venv/` en la raíz del proyecto |
 
-## Estado actual del proyecto (260419)
+## Estado actual del proyecto (260419 — sesión de cierre)
 
 - Carga de archivos IFC **implementada y funcional**.
 - Árbol de jerarquía espacial **implementado y funcional**.
@@ -124,6 +124,16 @@ AppCLI/
 | `openai_model` | Modelo OpenAI activo |
 | `anthropic_api_key` | Clave API de Anthropic (nunca se distribuye) |
 | `openai_api_key` | Clave API de OpenAI (nunca se distribuye) |
+
+## Resumen sesión 260419
+
+Trabajo completado en esta sesión:
+
+1. **Herramienta `filtrar_por_propiedad`** — filtra elementos por valor de propiedad, en el modelo completo o en la selección actual. Usa un sentinel `_DELEGAR_SELECCION_` para que `ToolRunner` resuelva el filtrado sobre `_elementos`.
+2. **`AppTools`** — nuevo módulo con herramientas `estado_app` y `cargar_ifc` que permiten a la IA consultar el estado de la aplicación y abrir archivos IFC desde la consola.
+3. **Sincronización árbol ↔ IA** — cuando una herramienta devuelve una lista de elementos, el árbol se actualiza automáticamente: `IFCTools._last_ids` → `ToolRunner.on_seleccionar` → `TreePanel.select_by_ids()`. Verificado que no produce bucle (el cambio de selección actualiza contexto pero no relanza la IA).
+4. **54 tests unitarios** pasando — `ifc/query.py`, `ifc_tools.py`, backends y config.
+5. **Documentación** actualizada — manual, arquitectura, contexto y guía de desarrollo.
 
 ## Posibles próximos pasos
 

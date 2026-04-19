@@ -45,12 +45,8 @@ class TreePanel:
         etiqueta = f"{nodo['nombre']}  [{nodo['tipo']}]"
         iid = self.tree.insert(padre, tk.END, text=etiqueta, open=True)
         self._elementos[iid] = nodo["elemento"]
-        try:
-            gid = nodo["elemento"].get_info().get("GlobalId")
-            if gid:
-                self._gid_to_iid[gid] = iid
-        except Exception:
-            pass
+        if nodo.get("id"):
+            self._gid_to_iid[nodo["id"]] = iid
         for hijo in nodo["hijos"]:
             self._insertar(hijo, iid)
 

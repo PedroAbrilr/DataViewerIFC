@@ -111,9 +111,10 @@ class OllamaClient:
             except subprocess.CalledProcessError:
                 status(f"Error al descargar {base_model}.")
                 return False
+            modelos = self.modelos_disponibles()
 
         # 3. Crear el modelo personalizado desde el Modelfile si no existe
-        custom_disponible = any(_CUSTOM_MODEL in m for m in self.modelos_disponibles())
+        custom_disponible = any(_CUSTOM_MODEL in m for m in modelos)
 
         if not custom_disponible:
             status(f"Creando modelo {_CUSTOM_MODEL}...")

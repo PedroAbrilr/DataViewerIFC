@@ -280,9 +280,10 @@ class ConfigDialog:
         def _aplicar():
             bid = var_backend.get()
             modelo = var_modelo.get()
+            cfg_actual = _config.load()
 
             # Si el backend necesita API key y no la tiene, pedirla ahora
-            if bid in _ENV_KEY and not os.environ.get(_ENV_KEY[bid]) and not _config.load().get(_CFG_KEY[bid]):
+            if bid in _ENV_KEY and not os.environ.get(_ENV_KEY[bid]) and not cfg_actual.get(_CFG_KEY[bid]):
                 clave = pedir_api_key(self._dlg, bid)
                 if not clave:
                     return  # el usuario canceló
@@ -290,7 +291,7 @@ class ConfigDialog:
                 _config.save({_CFG_KEY[bid]: clave})
 
             _config.save({"active_backend": bid, f"{bid}_model": modelo})
-            nuevo_cfg = _config.load()
+            nuevo_cfg = {**cfg_actual, "active_backend": bid, f"{bid}_model": modelo}
             nuevo_backend = self._app._crear_backend(bid, nuevo_cfg)
 
             self._app._backend_id = bid

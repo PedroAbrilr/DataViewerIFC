@@ -4,6 +4,20 @@ Todas reciben `modelo` (ifcopenshell.file) y devuelven datos serializables
 (listas, dicts, strings, números). No dependen de la UI ni de IFCLoader.
 """
 
+_CANTIDAD_ATTRS = (
+    "LengthValue", "AreaValue", "VolumeValue",
+    "WeightValue", "CountValue", "TimeValue",
+)
+
+_UNIDADES_CANTIDAD = {
+    "LengthValue": "m",
+    "AreaValue":   "m²",
+    "VolumeValue": "m³",
+    "WeightValue": "kg",
+    "CountValue":  "",
+    "TimeValue":   "s",
+}
+
 
 def _elem_dict(e) -> dict:
     """Convierte un elemento IFC en un dict básico (id, nombre, tipo)."""
@@ -17,6 +31,64 @@ def _elem_dict(e) -> dict:
 
 def _normalizar_tipo(tipo: str) -> str:
     return tipo if tipo.startswith("Ifc") else f"Ifc{tipo}"
+
+
+def _unidad_prop(prop) -> str:
+    """Extrae la unidad de una IfcPropertySingleValue si la tiene."""
+    unit = getattr(prop, "Unit", None)
+    if unit is None:
+        return ""
+    if hasattr(unit, "Name"):
+        return str(unit.Name)
+    if hasattr(unit, "Prefix") and hasattr(unit, "UnitType"):
+        prefix = unit.Prefix or ""
+        return f"{prefix}{unit.UnitType}".lower()
+    return ""
+
+
+def _extraer_valor_cantidad(cantidad) -> tuple:
+    """Extrae (valor_str, unidad) de una IfcPhysicalQuantity, o (None, '') si no aplica."""
+    for attr in _CANTIDAD_ATTRS:
+        valor = getattr(cantidad, attr, None)
+        if valor is not None:
+            return str(round(valor, 4)), _UNIDADES_CANTIDAD.get(attr, "")
+    return None, ""
+
+
+def _grupos_pset(elemento) -> list:
+    """Devuelve los grupos de PSets del elemento, sin el grupo 'Atributos'."""
+    grupos = []
+    for rel in getattr(elemento, "IsDefinedBy", []):
+        if not rel.is_a("IfcRelDefinesByProperties"):
+            continue
+        pset = rel.RelatingPropertyDefinition
+
+        if pset.is_a("IfcPropertySet"):
+            props = []
+            for prop in getattr(pset, "HasProperties", []):
+                if prop.is_a("IfcPropertySingleValue") and prop.NominalValue:
+                    props.append({
+                        "nombre": prop.Name,
+                        "valor":  str(prop.NominalValue.wrappedValue),
+                        "unidad": _unidad_prop(prop),
+                    })
+            if props:
+                grupos.append({"pset": pset.Name, "props": props})
+
+        elif pset.is_a("IfcElementQuantity"):
+            props = []
+            for cantidad in getattr(pset, "Quantities", []):
+                valor, unidad = _extraer_valor_cantidad(cantidad)
+                if valor is not None:
+                    props.append({
+                        "nombre": cantidad.Name,
+                        "valor":  valor,
+                        "unidad": unidad,
+                    })
+            if props:
+                grupos.append({"pset": pset.Name, "props": props})
+
+    return grupos
 
 
 def buscar_por_tipo(modelo, tipo: str) -> list:
@@ -92,7 +164,7 @@ def calcular_area_total(modelo, tipo: str) -> float:
                     area_encontrada = True
                     break
             if area_encontrada:
-                break  # no acumular de varios quantity sets
+                break
 
     return round(total, 4)
 
@@ -140,8 +212,7 @@ def filtrar_por_propiedad(elementos: list, propiedad: str, valor: str) -> list:
                 for cantidad in getattr(pset, "Quantities", []):
                     if cantidad.Name.lower() != propiedad_lower:
                         continue
-                    for attr in ("LengthValue", "AreaValue", "VolumeValue",
-                                 "WeightValue", "CountValue", "TimeValue"):
+                    for attr in _CANTIDAD_ATTRS:
                         val = getattr(cantidad, attr, None)
                         if val is not None and valor_lower in str(val).lower():
                             resultado.append(_elem_dict(e))
@@ -168,54 +239,13 @@ def obtener_propiedades(modelo, global_id: str) -> dict:
 
     info = elemento.get_info()
 
-    # Atributos básicos
     attrs = []
     for clave in ("GlobalId", "Name", "Description", "ObjectType"):
         if info.get(clave):
             attrs.append({"nombre": clave, "valor": str(info[clave]), "unidad": ""})
     attrs.append({"nombre": "Tipo IFC", "valor": elemento.is_a(), "unidad": ""})
     grupos = [{"pset": "Atributos", "props": attrs}]
-
-    _unidades_cantidad = {
-        "LengthValue": "m",
-        "AreaValue":   "m²",
-        "VolumeValue": "m³",
-        "WeightValue": "kg",
-        "CountValue":  "",
-        "TimeValue":   "s",
-    }
-
-    for rel in getattr(elemento, "IsDefinedBy", []):
-        if not rel.is_a("IfcRelDefinesByProperties"):
-            continue
-        pset = rel.RelatingPropertyDefinition
-
-        if pset.is_a("IfcPropertySet"):
-            props = []
-            for prop in pset.HasProperties:
-                if prop.is_a("IfcPropertySingleValue") and prop.NominalValue:
-                    props.append({
-                        "nombre": prop.Name,
-                        "valor":  str(prop.NominalValue.wrappedValue),
-                        "unidad": "",
-                    })
-            if props:
-                grupos.append({"pset": pset.Name, "props": props})
-
-        elif pset.is_a("IfcElementQuantity"):
-            props = []
-            for cantidad in pset.Quantities:
-                for attr, unidad in _unidades_cantidad.items():
-                    valor = getattr(cantidad, attr, None)
-                    if valor is not None:
-                        props.append({
-                            "nombre": cantidad.Name,
-                            "valor":  str(round(valor, 4)),
-                            "unidad": unidad,
-                        })
-                        break
-            if props:
-                grupos.append({"pset": pset.Name, "props": props})
+    grupos.extend(_grupos_pset(elemento))
 
     return {
         "encontrado": True,

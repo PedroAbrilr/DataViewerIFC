@@ -3,6 +3,8 @@
 import ifcopenshell
 import ifcopenshell.util.element
 
+from appcli.ifc.query import _grupos_pset
+
 
 class IFCLoader:
     def __init__(self):
@@ -62,75 +64,13 @@ class IFCLoader:
         if elemento is None:
             return []
 
-        grupos = []
-
-        # --- Atributos básicos ---
         info = elemento.get_info()
         attrs = []
         for clave in ("GlobalId", "Name", "Description", "ObjectType"):
             if info.get(clave):
                 attrs.append({"nombre": clave, "valor": str(info[clave]), "unidad": ""})
         attrs.append({"nombre": "Tipo IFC", "valor": elemento.is_a(), "unidad": ""})
-        grupos.append({"pset": "Atributos", "props": attrs})
 
-        # --- Property sets ---
-        for rel in getattr(elemento, "IsDefinedBy", []):
-            if not rel.is_a("IfcRelDefinesByProperties"):
-                continue
-            pset = rel.RelatingPropertyDefinition
-            if pset.is_a("IfcPropertySet"):
-                props = []
-                for prop in pset.HasProperties:
-                    if prop.is_a("IfcPropertySingleValue") and prop.NominalValue:
-                        unidad = self._unidad(prop)
-                        props.append({
-                            "nombre": prop.Name,
-                            "valor": str(prop.NominalValue.wrappedValue),
-                            "unidad": unidad,
-                        })
-                if props:
-                    grupos.append({"pset": pset.Name, "props": props})
-
-            elif pset.is_a("IfcElementQuantity"):
-                props = []
-                for cantidad in pset.Quantities:
-                    valor, unidad = self._cantidad(cantidad)
-                    if valor is not None:
-                        props.append({
-                            "nombre": cantidad.Name,
-                            "valor": valor,
-                            "unidad": unidad,
-                        })
-                if props:
-                    grupos.append({"pset": pset.Name, "props": props})
-
+        grupos = [{"pset": "Atributos", "props": attrs}]
+        grupos.extend(_grupos_pset(elemento))
         return grupos
-
-    def _unidad(self, prop) -> str:
-        """Extrae la unidad de una IfcPropertySingleValue si la tiene."""
-        unit = getattr(prop, "Unit", None)
-        if unit is None:
-            return ""
-        if hasattr(unit, "Name"):
-            return str(unit.Name)
-        if hasattr(unit, "Prefix") and hasattr(unit, "UnitType"):
-            prefix = unit.Prefix or ""
-            return f"{prefix}{unit.UnitType}".lower()
-        return ""
-
-    def _cantidad(self, cantidad) -> tuple:
-        """Extrae valor y unidad de una IfcPhysicalQuantity."""
-        for attr in ("LengthValue", "AreaValue", "VolumeValue",
-                     "WeightValue", "CountValue", "TimeValue"):
-            valor = getattr(cantidad, attr, None)
-            if valor is not None:
-                unidades = {
-                    "LengthValue": "m",
-                    "AreaValue": "m²",
-                    "VolumeValue": "m³",
-                    "WeightValue": "kg",
-                    "CountValue": "",
-                    "TimeValue": "s",
-                }
-                return str(round(valor, 4)), unidades.get(attr, "")
-        return None, ""

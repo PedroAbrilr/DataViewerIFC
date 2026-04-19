@@ -19,7 +19,7 @@ Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Fou
 | Distribución | wheel `py3-none-any` (`python -m build --wheel`) |
 | Entorno virtual | `.venv/` en la raíz del proyecto |
 
-## Estado actual del proyecto (260419 — sesión de cierre)
+## Estado actual del proyecto (260419)
 
 - Carga de archivos IFC **implementada y funcional**.
 - Árbol de jerarquía espacial **implementado y funcional**.
@@ -50,8 +50,9 @@ Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Fou
   - Pull del modelo + creación de `ifc-assistant`
   - Guarda configuración y acceso directo de escritorio
 - Wheel `py3-none-any` (sin binario Ollama embebido).
-- Tests unitarios: 54 tests pasando (`ifc/query.py`, `ifc_tools.py`, backends y config).
+- Tests unitarios: 97 tests pasando (`ifc/query.py`, `ifc_tools.py`, backends, config, `app_tools.py` y `tool_runner.py`).
 - Manual de usuario actualizado.
+- Repositorio publicado en GitHub: https://github.com/PedroAbrilr/ifc_IA_CLI
 
 ## Arquitectura de módulos
 
@@ -61,7 +62,9 @@ AppCLI/
 ├── tests/
 │   ├── test_ifc_query.py     # 21 tests de ifc/query.py
 │   ├── test_ifc_tools.py     # 18 tests de ai/ifc_tools.py
-│   └── test_backends.py      # 15 tests de backends y config
+│   ├── test_backends.py      # 15 tests de backends y config
+│   ├── test_app_tools.py     # 12 tests de ai/app_tools.py
+│   └── test_tool_runner.py   # 31 tests de ai/tool_runner.py
 └── src/appcli/
     ├── ui/
     │   ├── theme.py          # Paleta, fuentes y estilos ttk
@@ -132,12 +135,12 @@ Trabajo completado en esta sesión:
 1. **Herramienta `filtrar_por_propiedad`** — filtra elementos por valor de propiedad, en el modelo completo o en la selección actual. Usa un sentinel `_DELEGAR_SELECCION_` para que `ToolRunner` resuelva el filtrado sobre `_elementos`.
 2. **`AppTools`** — nuevo módulo con herramientas `estado_app` y `cargar_ifc` que permiten a la IA consultar el estado de la aplicación y abrir archivos IFC desde la consola.
 3. **Sincronización árbol ↔ IA** — cuando una herramienta devuelve una lista de elementos, el árbol se actualiza automáticamente: `IFCTools._last_ids` → `ToolRunner.on_seleccionar` → `TreePanel.select_by_ids()`. Verificado que no produce bucle (el cambio de selección actualiza contexto pero no relanza la IA).
-4. **54 tests unitarios** pasando — `ifc/query.py`, `ifc_tools.py`, backends y config.
-5. **Documentación** actualizada — manual, arquitectura, contexto y guía de desarrollo.
+4. **97 tests unitarios** pasando — `ifc/query.py`, `ifc_tools.py`, backends, config, `app_tools.py` y `tool_runner.py`.
+5. **Repositorio publicado en GitHub**: https://github.com/PedroAbrilr/ifc_IA_CLI
+6. **Documentación** actualizada — manual, arquitectura, contexto y guía de desarrollo.
 
 ## Posibles próximos pasos
 
-- Publicar en GitHub y crear primera Release con el wheel
-- Ampliar cobertura de tests: `app_tools.py`, `tool_runner.py`, `config_dialog.py`
-- Herramienta de selección inversa: seleccionar elementos en la IA desde el árbol y consultarlos por GlobalId
+- Crear primera Release en GitHub con el wheel adjunto
 - Exportar resultados de consultas a CSV o tabla
+- Tests de `config_dialog.py` (UI Tkinter — requiere servidor de display o mock)

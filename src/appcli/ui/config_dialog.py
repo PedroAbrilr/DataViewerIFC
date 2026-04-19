@@ -1,12 +1,12 @@
 """Ventana de configuración: backend IA y directorios del sistema."""
 
 import os
-import platform
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
 from appcli import config as _config
+from appcli.platform_support import get_platform
 from appcli.ui import theme
 
 MARGIN = 20
@@ -45,26 +45,14 @@ def _dir_size(path: Path) -> str:
 
 
 def _directorios() -> list[dict]:
-    home = Path.home()
-    if platform.system() == "Windows":
-        base_local = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
-        ollama_bin = base_local / "appcli" / "ollama" / "ollama.exe"
-    else:
-        ollama_bin = home / ".local" / "share" / "appcli" / "ollama" / "ollama"
-
+    plat = get_platform()
     entradas = [
-        {"label": "Configuración", "path": home / ".config" / "appcli"},
-        {"label": "Ollama", "path": ollama_bin.parent},
-        {"label": "Modelos Ollama", "path": Path(
-            os.environ.get("OLLAMA_MODELS") or
-            str(home / ".local" / "share" / "appcli" / "ollama" / "models")
-        )},
+        {"label": "Configuración",  "path": plat.config_dir},
+        {"label": "Ollama",         "path": plat.ollama_dir},
+        {"label": "Modelos Ollama", "path": plat.models_dir},
     ]
-    if platform.system() == "Linux":
-        entradas.append({
-            "label": "Acceso directo",
-            "path": home / ".local" / "share" / "applications" / "appcli.desktop",
-        })
+    if plat.shortcut_path:
+        entradas.append({"label": "Acceso directo", "path": plat.shortcut_path})
 
     for e in entradas:
         p = e["path"]
@@ -99,7 +87,7 @@ def pedir_api_key(parent, backend_id: str) -> str | None:
 
     tk.Label(
         dlg,
-        text=f"Se guardará en ~/.config/appcli/config.json\ny no se incluirá en la distribución.",
+        text=f"Se guardará en {get_platform().config_dir_display}/config.json\ny no se incluirá en la distribución.",
         bg=theme.BG_PANEL, fg=theme.FG_SECONDARY, font=theme.FONT_SMALL,
         wraplength=400, justify="left",
     ).pack(anchor="w", padx=MARGIN)

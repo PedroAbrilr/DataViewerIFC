@@ -25,6 +25,16 @@ Dependencias de desarrollo: `pytest`, `build`.
 .venv/bin/pytest
 ```
 
+Suite actual: **97 tests** en 5 archivos.
+
+| Archivo | Cobertura |
+|---|---|
+| `test_ifc_query.py` | `ifc/query.py` — funciones IFC puras |
+| `test_ifc_tools.py` | `ai/ifc_tools.py` — schemas y ejecutor |
+| `test_backends.py` | `ai/backends/` y `config.py` |
+| `test_app_tools.py` | `ai/app_tools.py` — herramientas de app |
+| `test_tool_runner.py` | `ai/tool_runner.py` — contexto, tool calling y chat |
+
 ## Generar wheel de distribución
 
 ```bash

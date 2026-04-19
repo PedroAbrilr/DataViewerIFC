@@ -1,7 +1,6 @@
 """Cliente para comunicación con Ollama en local."""
 
 import os
-import platform
 import subprocess
 import tempfile
 import time
@@ -10,18 +9,12 @@ from pathlib import Path
 import ollama
 
 from appcli import config as _config
+from appcli.platform_support import get_platform
 
-_PKG_DIR      = Path(__file__).parent.parent          # src/appcli/
-_CUSTOM_MODEL  = "ifc-assistant"
-_MODELFILE     = _PKG_DIR / "data" / "Modelfile"
-_MANUAL_FILE   = _PKG_DIR / "data" / "manual_usuario.md"
-def _user_ollama_bin() -> Path:
-    if platform.system() == "Windows":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base = Path.home() / ".local" / "share"
-    suffix = ".exe" if platform.system() == "Windows" else ""
-    return base / "appcli" / "ollama" / f"ollama{suffix}"
+_PKG_DIR      = Path(__file__).parent.parent
+_CUSTOM_MODEL = "ifc-assistant"
+_MODELFILE    = _PKG_DIR / "data" / "Modelfile"
+_MANUAL_FILE  = _PKG_DIR / "data" / "manual_usuario.md"
 
 
 def _ollama_bin() -> str:
@@ -29,8 +22,9 @@ def _ollama_bin() -> str:
     dev_bin = os.environ.get("APPCLI_OLLAMA_BIN")
     if dev_bin and Path(dev_bin).exists() and os.access(dev_bin, os.X_OK):
         return dev_bin
-    user_bin = _user_ollama_bin()
-    if user_bin.exists() and os.access(user_bin, os.X_OK):
+    plat = get_platform()
+    user_bin = plat.ollama_bin_path
+    if plat.is_executable(user_bin):
         return str(user_bin)
     return "ollama"
 
@@ -53,9 +47,6 @@ class OllamaClient:
     def __init__(self):
         self._proceso = None  # subproceso de ollama serve
 
-    # ------------------------------------------------------------------
-    # Gestión del servidor
-    # ------------------------------------------------------------------
     def ensure_running(self, on_status=None) -> bool:
         """Asegura que Ollama está en ejecución y el modelo disponible.
 
@@ -83,7 +74,6 @@ class OllamaClient:
                 status("Error: Ollama no está instalado. Descárgalo en https://ollama.com")
                 return False
 
-            # Esperar a que arranque (máx. 10 segundos)
             for _ in range(20):
                 time.sleep(0.5)
                 if self._ping():
@@ -122,10 +112,7 @@ class OllamaClient:
                 modelfile_content = _MODELFILE.read_text(encoding="utf-8")
                 modelfile_content = modelfile_content.replace("{{BASE_MODEL}}", base_model)
                 if "{{MANUAL_USUARIO}}" in modelfile_content:
-                    if _MANUAL_FILE.exists():
-                        manual = _MANUAL_FILE.read_text(encoding="utf-8")
-                    else:
-                        manual = "(Manual de usuario no disponible)"
+                    manual = _MANUAL_FILE.read_text(encoding="utf-8") if _MANUAL_FILE.exists() else "(Manual de usuario no disponible)"
                     modelfile_content = modelfile_content.replace("{{MANUAL_USUARIO}}", manual)
 
                 with tempfile.NamedTemporaryFile(
@@ -147,14 +134,12 @@ class OllamaClient:
                 status(f"Modelo {_CUSTOM_MODEL} listo.")
             except subprocess.CalledProcessError:
                 status(f"Error al crear {_CUSTOM_MODEL}. Usando modelo base.")
-                self.model = base_model
         else:
             status(f"Modelo {_CUSTOM_MODEL} listo.")
 
         return True
 
     def _ping(self) -> bool:
-        """Devuelve True si Ollama responde."""
         try:
             ollama.list()
             return True
@@ -162,7 +147,6 @@ class OllamaClient:
             return False
 
     def modelos_disponibles(self) -> list[str]:
-        """Devuelve la lista de modelos instalados en Ollama."""
         try:
             return [m.model for m in ollama.list().models]
         except Exception:

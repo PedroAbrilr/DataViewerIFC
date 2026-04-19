@@ -1,6 +1,6 @@
 [project]
 name = "appcli"
-version = "1.0.0"
+version = "1.1.0"
 description = "Visor de archivos IFC con consola de IA local (Ollama)"
 requires-python = ">=3.11"
 dependencies = [

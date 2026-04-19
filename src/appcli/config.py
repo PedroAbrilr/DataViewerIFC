@@ -1,11 +1,13 @@
-"""Gestión de la configuración de usuario (~/.config/appcli/config.json)."""
+"""Gestión de la configuración de usuario."""
 
 import json
 import os
-from pathlib import Path
 
-_CONFIG_DIR = Path.home() / ".config" / "appcli"
+from appcli.platform_support import get_platform
+
+_CONFIG_DIR  = get_platform().config_dir
 _CONFIG_FILE = _CONFIG_DIR / "config.json"
+
 _DEFAULTS: dict = {
     "base_model":        "qwen2.5:1.5b",
     "active_backend":    "ollama",

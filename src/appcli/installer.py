@@ -1,9 +1,6 @@
 """Instalador de AppCLI: descarga Ollama, configura el modelo y el acceso directo."""
 
-import os
-import platform
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -12,37 +9,24 @@ import urllib.request
 from pathlib import Path
 
 from appcli import config
+from appcli.platform_support import get_platform
 
-# --- Rutas ---
-_PKG_DIR     = Path(__file__).parent
-_MODELFILE   = _PKG_DIR / "data" / "Modelfile"
-_MANUAL_FILE = _PKG_DIR / "data" / "manual_usuario.md"
-_DESKTOP_SRC = _PKG_DIR / "data" / "appcli.desktop"
+_PKG_DIR      = Path(__file__).parent
+_MODELFILE    = _PKG_DIR / "data" / "Modelfile"
+_MANUAL_FILE  = _PKG_DIR / "data" / "manual_usuario.md"
+_DESKTOP_SRC  = _PKG_DIR / "data" / "appcli.desktop"
 _CUSTOM_MODEL = "ifc-assistant"
-
-# Directorio donde se instala el binario de Ollama si no está en el sistema
-def _user_bin_dir() -> Path:
-    if platform.system() == "Windows":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base = Path.home() / ".local" / "share"
-    return base / "appcli" / "ollama"
-
-
-def _user_ollama_bin() -> Path:
-    suffix = ".exe" if platform.system() == "Windows" else ""
-    return _user_bin_dir() / f"ollama{suffix}"
 
 
 def _system_ollama() -> str | None:
-    """Devuelve la ruta al binario de Ollama del sistema, o None si no existe."""
     path = shutil.which("ollama")
     return path if path else None
 
 
 def _ollama_bin() -> str:
-    user_bin = _user_ollama_bin()
-    if user_bin.exists() and os.access(user_bin, os.X_OK):
+    plat = get_platform()
+    user_bin = plat.ollama_bin_path
+    if plat.is_executable(user_bin):
         return str(user_bin)
     sys_bin = _system_ollama()
     if sys_bin:
@@ -52,36 +36,19 @@ def _ollama_bin() -> str:
 
 # --- Descarga de Ollama ---
 
-_OLLAMA_RELEASES = "https://github.com/ollama/ollama/releases/latest/download"
-
-_DOWNLOAD_MAP = {
-    ("Linux",   "x86_64"):  f"{_OLLAMA_RELEASES}/ollama-linux-amd64",
-    ("Linux",   "aarch64"): f"{_OLLAMA_RELEASES}/ollama-linux-arm64",
-    ("Darwin",  "x86_64"):  f"{_OLLAMA_RELEASES}/ollama-darwin",
-    ("Darwin",  "arm64"):   f"{_OLLAMA_RELEASES}/ollama-darwin",
-}
-
-
 def _download_ollama() -> bool:
-    """Descarga el binario de Ollama al directorio de usuario. Devuelve True si tiene éxito."""
-    system = platform.system()
-    machine = platform.machine()
-    url = _DOWNLOAD_MAP.get((system, machine))
+    plat = get_platform()
+    url = plat.ollama_download_url()
 
     if not url:
-        if system == "Windows":
-            print(
-                "  En Windows instala Ollama manualmente desde https://ollama.com/download\n"
-                "  Una vez instalado, vuelve a ejecutar appcli-install."
-            )
-        else:
-            print(f"  Plataforma no soportada para descarga automática: {system} {machine}")
+        print(f"  {plat.ollama_install_hint()}")
         return False
 
-    dest = _user_ollama_bin()
+    dest = plat.ollama_bin_path
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"  Descargando Ollama para {system} {machine}...")
+    import platform as _platform
+    print(f"  Descargando Ollama para {_platform.system()} {_platform.machine()}...")
     try:
         def _progress(count, block_size, total):
             if total > 0:
@@ -90,7 +57,7 @@ def _download_ollama() -> bool:
 
         urllib.request.urlretrieve(url, dest, reporthook=_progress)
         print()
-        dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        plat.set_executable(dest)
         print(f"  Ollama instalado en {dest}")
         return True
     except Exception as exc:
@@ -201,37 +168,18 @@ def _crear_ifc_assistant(base_model: str) -> bool:
         return False
 
 
-# --- Acceso directo de escritorio ---
-
-def _instalar_acceso_directo() -> None:
-    if platform.system() != "Linux":
-        return
-    if not _DESKTOP_SRC.exists():
-        return
-    desktop_dir = Path.home() / ".local" / "share" / "applications"
-    desktop_dir.mkdir(parents=True, exist_ok=True)
-    dest = desktop_dir / "appcli.desktop"
-    shutil.copy(_DESKTOP_SRC, dest)
-    try:
-        subprocess.run(
-            ["update-desktop-database", str(desktop_dir)],
-            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-    except FileNotFoundError:
-        pass
-    print(f"  Acceso directo instalado en {dest}")
-
-
 # --- Punto de entrada ---
 
 def main() -> None:
     print("=== Instalador de AppCLI ===\n")
 
+    plat = get_platform()
+
     # 1. Comprobar / descargar Ollama
     if _system_ollama():
-        print(f"✓ Ollama encontrado en el sistema: {_system_ollama()}")
-    elif _user_ollama_bin().exists():
-        print(f"✓ Ollama encontrado en {_user_ollama_bin()}")
+        print(f"  Ollama encontrado en el sistema: {_system_ollama()}")
+    elif plat.is_executable(plat.ollama_bin_path):
+        print(f"  Ollama encontrado en {plat.ollama_bin_path}")
     else:
         print("Ollama no está instalado. Se descargará ahora.")
         if not _download_ollama():
@@ -248,10 +196,7 @@ def main() -> None:
     if not any(base_tag in m for m in modelos):
         print(f"\n  Descargando {base_model} (puede tardar varios minutos)...")
         try:
-            subprocess.run(
-                [_ollama_bin(), "pull", base_model],
-                check=True,
-            )
+            subprocess.run([_ollama_bin(), "pull", base_model], check=True)
         except subprocess.CalledProcessError:
             print(f"  Error al descargar {base_model}.")
             if proc:
@@ -268,12 +213,12 @@ def main() -> None:
 
     # 5. Guardar configuración
     config.save({"base_model": base_model})
-    print(f"  Configuración guardada en ~/.config/appcli/config.json")
+    print(f"  Configuración guardada en {plat.config_dir_display}")
 
     # 6. Acceso directo
-    _instalar_acceso_directo()
+    plat.install_shortcut(_DESKTOP_SRC)
 
     if proc:
         proc.terminate()
 
-    print("\n✓ Instalación completada. Ejecuta 'appcli' para iniciar la aplicación.")
+    print("\n  Instalación completada. Ejecuta 'appcli' para iniciar la aplicación.")

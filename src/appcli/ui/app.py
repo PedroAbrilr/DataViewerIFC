@@ -208,7 +208,7 @@ class App:
 
     def _actualizar_arbol(self, nodos: list, path: str, total: int):
         self.tree_panel.load(nodos)
-        nombre = path.split("/")[-1]
+        nombre = Path(path).name
         self._archivo_activo = nombre
         self.root.title(f"AppCLI — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)

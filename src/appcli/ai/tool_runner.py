@@ -17,7 +17,6 @@ _SYSTEM_BASE = (
 )
 
 _MAX_ITERACIONES = 5
-_BUFFER_TOKENS   = 8
 
 
 class ToolRunner:
@@ -103,17 +102,10 @@ class ToolRunner:
             if should_stop and should_stop():
                 return
 
-            buffer = []
             for text in self.backend.chat_stream(system, messages):
                 if should_stop and should_stop():
                     return
-                buffer.append(text)
-                if len(buffer) >= _BUFFER_TOKENS:
-                    on_token("".join(buffer))
-                    buffer.clear()
-
-            if buffer and not (should_stop and should_stop()):
-                on_token("".join(buffer))
+                on_token(text)
 
         except Exception as exc:
             on_token(f"\n[Error del asistente: {exc}]")

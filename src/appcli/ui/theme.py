@@ -23,6 +23,37 @@ FONT_SMALL = ("Segoe UI", 9)
 FONT_BOLD  = ("Segoe UI", 10, "bold")
 
 
+_BUTTON_STYLES = {
+    "accent": {
+        "bg": ACCENT, "fg": "#ffffff",
+        "activebackground": "#3a82d6", "activeforeground": "#ffffff",
+        "font": FONT_BOLD,
+    },
+    "surface": {
+        "bg": BG_SURFACE, "fg": FG_PRIMARY,
+        "activebackground": BG_HEADER, "activeforeground": FG_PRIMARY,
+        "font": FONT_UI,
+    },
+    "danger": {
+        "bg": "#c0392b", "fg": "#ffffff",
+        "activebackground": "#a93226", "activeforeground": "#ffffff",
+        "font": FONT_BOLD,
+    },
+}
+
+
+def make_button(parent, text: str, command, variant: str = "accent", **kwargs) -> tk.Button:
+    """Crea un tk.Button con el estilo del tema. variant: 'accent', 'surface' o 'danger'."""
+    style = dict(_BUTTON_STYLES.get(variant, _BUTTON_STYLES["accent"]))
+    style.update(kwargs)
+    return tk.Button(
+        parent, text=text, command=command,
+        relief="flat", bd=0, cursor="hand2",
+        padx=14, pady=5,
+        **style,
+    )
+
+
 def apply(root: tk.Tk):
     """Aplica el tema a la ventana raíz (debe llamarse después de ThemedTk)."""
     root.configure(bg=BG_DARK)

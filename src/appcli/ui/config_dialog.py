@@ -135,20 +135,9 @@ def pedir_api_key(parent, backend_id: str) -> str | None:
 
     entry.bind("<Return>", lambda _: _aceptar())
 
-    tk.Button(
-        frame_btn, text="Aceptar", command=_aceptar,
-        bg=theme.ACCENT, fg="#ffffff",
-        activebackground="#3a82d6", activeforeground="#ffffff",
-        font=theme.FONT_BOLD, relief="flat", bd=0,
-        cursor="hand2", padx=14, pady=5,
-    ).pack(side=tk.RIGHT)
-
-    tk.Button(
-        frame_btn, text="Cancelar", command=_cancelar,
-        bg=theme.BG_SURFACE, fg=theme.FG_PRIMARY,
-        activebackground=theme.BG_HEADER,
-        font=theme.FONT_UI, relief="flat", bd=0,
-        cursor="hand2", padx=14, pady=5,
+    theme.make_button(frame_btn, "Aceptar", _aceptar).pack(side=tk.RIGHT)
+    theme.make_button(
+        frame_btn, "Cancelar", _cancelar, variant="surface",
     ).pack(side=tk.RIGHT, padx=(0, 8))
 
     dlg.wait_window()
@@ -304,18 +293,7 @@ class ConfigDialog:
 
             self._dlg.destroy()
 
-        tk.Button(
-            frame_btn, text="Aplicar", command=_aplicar,
-            bg=theme.ACCENT, fg="#ffffff",
-            activebackground="#3a82d6", activeforeground="#ffffff",
-            font=theme.FONT_BOLD, relief="flat", bd=0,
-            cursor="hand2", padx=14, pady=5,
-        ).pack(side=tk.RIGHT)
-
-        tk.Button(
-            frame_btn, text="Cancelar", command=self._dlg.destroy,
-            bg=theme.BG_SURFACE, fg=theme.FG_PRIMARY,
-            activebackground=theme.BG_HEADER,
-            font=theme.FONT_UI, relief="flat", bd=0,
-            cursor="hand2", padx=14, pady=5,
+        theme.make_button(frame_btn, "Aplicar", _aplicar).pack(side=tk.RIGHT)
+        theme.make_button(
+            frame_btn, "Cancelar", self._dlg.destroy, variant="surface",
         ).pack(side=tk.RIGHT, padx=(0, 8))

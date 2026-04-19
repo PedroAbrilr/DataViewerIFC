@@ -81,35 +81,11 @@ class AIConsole:
                         padx=(10, 6), pady=8, ipady=6)
         self.input.bind("<Return>", self._on_send)
 
-        self.send_btn = tk.Button(
-            input_bar,
-            text="Enviar",
-            command=self._on_send,
-            bg=theme.ACCENT,
-            fg="#ffffff",
-            activebackground="#3a82d6",
-            activeforeground="#ffffff",
-            font=theme.FONT_BOLD,
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            padx=16,
-        )
+        self.send_btn = theme.make_button(input_bar, "Enviar", self._on_send, padx=16)
         self.send_btn.pack(side=tk.RIGHT, padx=(0, 10), pady=8)
 
-        self.stop_btn = tk.Button(
-            input_bar,
-            text="Detener",
-            command=self._on_stop,
-            bg="#c0392b",
-            fg="#ffffff",
-            activebackground="#a93226",
-            activeforeground="#ffffff",
-            font=theme.FONT_BOLD,
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            padx=16,
+        self.stop_btn = theme.make_button(
+            input_bar, "Detener", self._on_stop, variant="danger", padx=16,
         )
         # oculto por defecto; se muestra al procesar
 

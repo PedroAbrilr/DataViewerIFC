@@ -62,21 +62,7 @@ class App:
         bar.pack(fill=tk.X, side=tk.TOP, padx=0, pady=0)
         bar.pack_propagate(False)
 
-        btn_open = tk.Button(
-            bar,
-            text="  Abrir IFC",
-            command=self._abrir_ifc,
-            bg=theme.ACCENT,
-            fg="#ffffff",
-            activebackground="#3a82d6",
-            activeforeground="#ffffff",
-            font=theme.FONT_BOLD,
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            padx=14,
-            pady=6,
-        )
+        btn_open = theme.make_button(bar, "  Abrir IFC", self._abrir_ifc, pady=6)
         btn_open.pack(side=tk.LEFT, padx=(MARGIN, 0), pady=7)
 
         self.lbl_archivo = tk.Label(
@@ -91,20 +77,9 @@ class App:
         self.root.bind("<Control-o>", lambda e: self._abrir_ifc())
 
         # Botón de configuración (lado derecho)
-        btn_cfg = tk.Button(
-            bar,
-            text="⚙  Configuración",
-            command=self._abrir_configuracion,
-            bg=theme.BG_SURFACE,
-            fg=theme.FG_PRIMARY,
-            activebackground=theme.BG_HEADER,
-            activeforeground=theme.FG_PRIMARY,
-            font=theme.FONT_SMALL,
-            relief="flat",
-            bd=0,
-            cursor="hand2",
-            padx=12,
-            pady=6,
+        btn_cfg = theme.make_button(
+            bar, "⚙  Configuración", self._abrir_configuracion,
+            variant="surface", font=theme.FONT_SMALL, padx=12, pady=6,
         )
         btn_cfg.pack(side=tk.RIGHT, padx=(0, MARGIN), pady=7)
 

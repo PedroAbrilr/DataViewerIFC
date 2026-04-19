@@ -19,6 +19,11 @@ class ChatResponse:
     _raw: Any = field(default=None, repr=False)
 
 
+def prepend_system(system: str, messages: list) -> list:
+    """Antepone el mensaje de sistema a la lista de mensajes."""
+    return [{"role": "system", "content": system}] + list(messages)
+
+
 class AIBackend(ABC):
     @abstractmethod
     def chat_turn(self, system: str, messages: list, tools: list) -> ChatResponse:

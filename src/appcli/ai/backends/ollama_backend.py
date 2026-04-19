@@ -2,7 +2,7 @@
 
 import ollama as _ollama
 
-from .base import AIBackend, ChatResponse, ToolCall
+from .base import AIBackend, ChatResponse, ToolCall, prepend_system
 
 
 class OllamaBackend(AIBackend):
@@ -10,7 +10,7 @@ class OllamaBackend(AIBackend):
         self._model = model
 
     def chat_turn(self, system: str, messages: list, tools: list) -> ChatResponse:
-        msgs = [{"role": "system", "content": system}] + list(messages)
+        msgs = prepend_system(system, messages)
         response = _ollama.chat(
             model=self._model,
             messages=msgs,
@@ -32,7 +32,7 @@ class OllamaBackend(AIBackend):
         )
 
     def chat_stream(self, system: str, messages: list):
-        msgs = [{"role": "system", "content": system}] + list(messages)
+        msgs = prepend_system(system, messages)
         for chunk in _ollama.chat(model=self._model, messages=msgs, stream=True):
             content = chunk.message.content
             if content:

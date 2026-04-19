@@ -3,7 +3,7 @@
 import json
 import os
 
-from .base import AIBackend, ChatResponse, ToolCall
+from .base import AIBackend, ChatResponse, ToolCall, prepend_system
 
 
 def _get_client():
@@ -12,12 +12,11 @@ def _get_client():
 
 
 def _prepare_messages(system: str, messages: list) -> list:
-    msgs = [{"role": "system", "content": system}]
+    msgs = prepend_system(system, [])
     for msg in messages:
         if isinstance(msg, dict):
             msgs.append(msg)
         else:
-            # Objeto Message de Ollama: convertir a dict
             msgs.append({"role": msg.role, "content": msg.content or ""})
     return msgs
 

@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 source .venv/bin/activate
 
 # Lanzar la aplicación (para probar o mostrar)
-.venv/bin/python src/appcli/main.py
+.venv/bin/python dev_bootstrap.py
 
 # Instalar dependencias
 .venv/bin/pip install -e ".[dev]"
@@ -23,7 +23,7 @@ python -m build --wheel
 
 ## Lanzar la aplicación
 
-Cuando el usuario pida mostrar, probar o lanzar la aplicación, usar siempre **Python directamente** (`src/appcli/main.py`). El wheel solo se genera cuando se pide explícitamente.
+Cuando el usuario pida mostrar, probar o lanzar la aplicación, usar siempre **`dev_bootstrap.py`** (`python dev_bootstrap.py`). Este archivo configura `APPCLI_OLLAMA_BIN` apuntando al binario portable del repositorio y no se incluye en el wheel. El wheel solo se genera cuando se pide explícitamente.
 
 ## Arquitectura
 
@@ -45,7 +45,7 @@ Las operaciones bloqueantes (carga IFC, consultas Ollama) se ejecutan en hilos s
 
 ## Distribución
 
-El wheel se genera con `python -m build --wheel` y queda en `dist/`. Incluye el binario portable de Ollama (`appcli/bin/ollama`), el `Modelfile` y el manual de usuario (`appcli/data/`). El tag de plataforma es `linux_x86_64` (configurado en `setup.cfg`). Los modelos de Ollama (`models/`) no se incluyen.
+El wheel se genera con `python -m build --wheel` y queda en `dist/`. Incluye el `Modelfile` y el manual de usuario (`appcli/data/`). El binario de Ollama **no se distribuye** en el wheel; el instalador (`appcli-install`) lo descarga a `~/.local/share/appcli/bin/`. Los modelos de Ollama (`models/`) tampoco se incluyen.
 
 ## Control de versiones
 

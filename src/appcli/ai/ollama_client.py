@@ -24,15 +24,28 @@ def _user_ollama_bin() -> Path:
     else:
         base = Path.home() / ".local" / "share"
     suffix = ".exe" if platform.system() == "Windows" else ""
-    return base / "appcli" / "bin" / f"ollama{suffix}"
+    return base / "appcli" / "ollama" / f"ollama{suffix}"
 
 
 def _ollama_bin() -> str:
-    """Devuelve la ruta al binario de Ollama: directorio de usuario → sistema."""
+    """Devuelve la ruta al binario de Ollama: APPCLI_OLLAMA_BIN → usuario → sistema."""
+    dev_bin = os.environ.get("APPCLI_OLLAMA_BIN")
+    if dev_bin and Path(dev_bin).exists() and os.access(dev_bin, os.X_OK):
+        return dev_bin
     user_bin = _user_ollama_bin()
     if user_bin.exists() and os.access(user_bin, os.X_OK):
         return str(user_bin)
     return "ollama"
+
+
+def _prepare_models_dir() -> None:
+    """Fija OLLAMA_MODELS en ollama/models/ junto al ejecutable portable."""
+    bin_path = Path(_ollama_bin())
+    if not bin_path.is_absolute():
+        return  # Ollama del sistema: usa ~/.ollama/models por defecto
+    models_dir = bin_path.parent / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["OLLAMA_MODELS"] = str(models_dir)
 
 
 def _base_model() -> str:
@@ -58,6 +71,8 @@ class OllamaClient:
         def status(msg):
             if on_status:
                 on_status(msg)
+
+        _prepare_models_dir()
 
         # 1. Comprobar si Ollama responde
         if not self._ping():

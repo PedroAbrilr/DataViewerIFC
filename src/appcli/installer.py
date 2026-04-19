@@ -26,7 +26,7 @@ def _user_bin_dir() -> Path:
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
     else:
         base = Path.home() / ".local" / "share"
-    return base / "appcli" / "bin"
+    return base / "appcli" / "ollama"
 
 
 def _user_ollama_bin() -> Path:

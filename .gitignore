@@ -15,9 +15,7 @@ __pycache__/
 dist/
 build/
 
-# Binario portable de Ollama
+# Binario portable de Ollama y sus modelos
 /bin/
-src/appcli/bin/ollama
-
-# Modelos de Ollama (pueden ocupar varios GB)
-models/
+src/appcli/ollama/ollama
+src/appcli/ollama/models/

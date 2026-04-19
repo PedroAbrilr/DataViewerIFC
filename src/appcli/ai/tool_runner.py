@@ -24,10 +24,15 @@ class ToolRunner:
     def __init__(self, backend: AIBackend, ifc_tools=None):
         self._backend   = backend
         self._ifc_tools = ifc_tools
+        self._app_tools    = None
+        self.on_seleccionar = None  # callable(global_ids: list[str])
         self.contexto_archivo   = ""
         self.contexto_seleccion = ""
         self._elementos = []
         self._props     = []
+
+    def set_app_tools(self, app_tools) -> None:
+        self._app_tools = app_tools
 
     # ------------------------------------------------------------------
     # API de contexto
@@ -120,6 +125,8 @@ class ToolRunner:
         tools = self._ifc_tools.definiciones() if self._ifc_tools else []
         if self._elementos:
             tools = tools + [self._schema_seleccion()]
+        if self._app_tools:
+            tools = tools + self._app_tools.definiciones()
         return tools
 
     def _ejecutar(self, nombre: str, args: dict) -> str:
@@ -127,8 +134,29 @@ class ToolRunner:
             modo = args.get("modo", "reducido")
             return self._fmt_seleccion(modo)
         if self._ifc_tools:
-            return self._ifc_tools.ejecutar(nombre, args)
+            resultado = self._ifc_tools.ejecutar(nombre, args)
+            if resultado == "_DELEGAR_SELECCION_":
+                return self._filtrar_seleccion(args)
+            if not resultado.startswith("Herramienta desconocida"):
+                if self.on_seleccionar and self._ifc_tools._last_ids:
+                    self.on_seleccionar(self._ifc_tools._last_ids)
+                return resultado
+        if self._app_tools:
+            return self._app_tools.ejecutar(nombre, args)
         return "No hay modelo IFC cargado."
+
+    def _filtrar_seleccion(self, args: dict) -> str:
+        from appcli.ifc import query as _q
+        from appcli.ai.ifc_tools import IFCTools
+        if not self._elementos:
+            return "No hay ningún elemento seleccionado."
+        resultado = _q.filtrar_por_propiedad(
+            self._elementos, args["propiedad"], args["valor"]
+        )
+        return self._ifc_tools._fmt_lista(
+            resultado,
+            f"propiedad '{args['propiedad']}' = '{args['valor']}' en la selección",
+        )
 
     def _schema_seleccion(self) -> dict:
         return {

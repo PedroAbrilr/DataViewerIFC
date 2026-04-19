@@ -108,6 +108,49 @@ def buscar_por_nombre(modelo, texto: str) -> list:
     return resultado
 
 
+def filtrar_por_propiedad(elementos: list, propiedad: str, valor: str) -> list:
+    """Filtra elementos que tienen una propiedad cuyo valor contiene el texto dado.
+
+    La comparación es case-insensitive y por subcadena.
+    Busca en IfcPropertySet e IfcElementQuantity.
+    """
+    propiedad_lower = propiedad.lower()
+    valor_lower     = valor.lower()
+    resultado       = []
+
+    for e in elementos:
+        for rel in getattr(e, "IsDefinedBy", []):
+            if not rel.is_a("IfcRelDefinesByProperties"):
+                continue
+            pset = rel.RelatingPropertyDefinition
+
+            if pset.is_a("IfcPropertySet"):
+                for prop in getattr(pset, "HasProperties", []):
+                    if prop.Name.lower() != propiedad_lower:
+                        continue
+                    if prop.is_a("IfcPropertySingleValue") and prop.NominalValue:
+                        if valor_lower in str(prop.NominalValue.wrappedValue).lower():
+                            resultado.append(_elem_dict(e))
+                            break
+                else:
+                    continue
+                break
+
+            elif pset.is_a("IfcElementQuantity"):
+                for cantidad in getattr(pset, "Quantities", []):
+                    if cantidad.Name.lower() != propiedad_lower:
+                        continue
+                    for attr in ("LengthValue", "AreaValue", "VolumeValue",
+                                 "WeightValue", "CountValue", "TimeValue"):
+                        val = getattr(cantidad, attr, None)
+                        if val is not None and valor_lower in str(val).lower():
+                            resultado.append(_elem_dict(e))
+                            break
+                    break
+
+    return resultado
+
+
 def obtener_propiedades(modelo, global_id: str) -> dict:
     """Devuelve las propiedades de un elemento dado su GlobalId.
 

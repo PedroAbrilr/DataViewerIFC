@@ -19,109 +19,115 @@ Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Fou
 | Distribución | wheel `py3-none-any` (`python -m build --wheel`) |
 | Entorno virtual | `.venv/` en la raíz del proyecto |
 
-## Estado actual del proyecto (260418)
+## Estado actual del proyecto (260419)
 
 - Carga de archivos IFC **implementada y funcional**.
 - Árbol de jerarquía espacial **implementado y funcional**.
 - Tabla de propiedades agrupada por PSet con columna de unidades **implementada**.
 - Multiselección en el árbol con propiedades fusionadas **implementada**.
 - Tema visual oscuro con `ttkthemes` (equilux) **aplicado**.
-- Barra de herramientas con botón de backend IA **implementada**.
 - Consola IA con streaming, tool calling y botón Detener **funcional**.
 - **Tool calling IFC completamente implementado**: 8 herramientas activas.
+- **Selección del árbol sincronizada con la IA**: cuando una herramienta devuelve una lista de elementos (buscar, filtrar, elementos de planta…) el árbol se actualiza automáticamente para seleccionarlos.
 - **Multi-backend IA implementado**:
   - `OllamaBackend` — modelo local, ifc-assistant personalizado
-  - `ClaudeBackend` — Anthropic API (ANTHROPIC_API_KEY)
-  - `OpenAIBackend` — OpenAI API (OPENAI_API_KEY)
-  - Selector en toolbar con diálogo de cambio y aviso si falta API key
+  - `ClaudeBackend` — Anthropic API
+  - `OpenAIBackend` — OpenAI API
   - Configuración persistida en `~/.config/appcli/config.json`
+- **Ventana de configuración** (`ui/config_dialog.py`):
+  - Selector de backend IA y modelo
+  - Diálogo emergente de API key al elegir Claude u OpenAI (se guarda en config.json)
+  - Sección de directorios del sistema con estado y tamaño
+  - Label de consola actualizado al cambiar de backend
+- **Herramientas de app** (`ai/app_tools.py`): `estado_app` y `cargar_ifc` permiten a la IA consultar el estado y abrir archivos IFC.
+- **Gestión de rutas de Ollama**:
+  - Binario portable en `src/appcli/ollama/ollama` (desarrollo) o `~/.local/share/appcli/ollama/ollama` (producción)
+  - Modelos en `ollama/models/` junto al binario (`OLLAMA_MODELS` configurado automáticamente)
+  - `dev_bootstrap.py` como punto de entrada en desarrollo (fija `APPCLI_OLLAMA_BIN`)
 - **Installer independiente** (`appcli-install`):
-  - Descarga Ollama según OS/arquitectura a `~/.local/share/appcli/bin/`
+  - Descarga Ollama según OS/arquitectura a `~/.local/share/appcli/ollama/`
   - Menú de selección de modelo base
   - Pull del modelo + creación de `ifc-assistant`
   - Guarda configuración y acceso directo de escritorio
 - Wheel `py3-none-any` (sin binario Ollama embebido).
-- Manual de usuario actualizado con multi-backend e instalador.
+- Tests unitarios: 54 tests pasando (`ifc/query.py`, `ifc_tools.py`, backends y config).
+- Manual de usuario actualizado.
 
 ## Arquitectura de módulos
 
 ```
 AppCLI/
+├── dev_bootstrap.py          ← punto de entrada desarrollo (no en wheel)
+├── tests/
+│   ├── test_ifc_query.py     # 21 tests de ifc/query.py
+│   ├── test_ifc_tools.py     # 18 tests de ai/ifc_tools.py
+│   └── test_backends.py      # 15 tests de backends y config
 └── src/appcli/
     ├── ui/
     │   ├── theme.py          # Paleta, fuentes y estilos ttk
-    │   ├── app.py            # Ventana principal; toolbar con selector de backend
-    │   ├── tree_panel.py     # Árbol jerárquico IFC (multiselección)
+    │   ├── app.py            # Ventana principal; toolbar con botón Configuración
+    │   ├── config_dialog.py  # Ventana de configuración: IA, credenciales, directorios
+    │   ├── tree_panel.py     # Árbol jerárquico IFC (multiselección + select_by_ids)
     │   ├── props_panel.py    # Tabla de propiedades por PSet
     │   └── ai_console.py     # Consola IA — delega en ToolRunner
     ├── ifc/
     │   ├── loader.py         # IFCLoader: carga, árbol, propiedades
     │   └── query.py          # Funciones IFC puras de consulta
     ├── ai/
-    │   ├── ollama_client.py  # Gestión del servidor Ollama (lifecycle)
-    │   ├── ifc_tools.py      # Schemas JSON + ejecutor de herramientas IFC
-    │   ├── tool_runner.py    # Contexto + bucle tool calling + formateadores
+    │   ├── ollama_client.py  # Gestión del servidor Ollama (lifecycle + rutas)
+    │   ├── ifc_tools.py      # Schemas JSON + ejecutor; _last_ids para selección
+    │   ├── tool_runner.py    # Contexto + bucle tool calling + on_seleccionar callback
+    │   ├── app_tools.py      # Herramientas de app: estado_app, cargar_ifc
     │   └── backends/
     │       ├── base.py           # AIBackend, ToolCall, ChatResponse
     │       ├── ollama_backend.py # Ollama local
     │       ├── claude_backend.py # Anthropic API
     │       └── openai_backend.py # OpenAI API
-    ├── config.py             # ~/.config/appcli/config.json
+    ├── config.py             # ~/.config/appcli/config.json + inject_env()
     ├── installer.py          # appcli-install: descarga Ollama, elige modelo
     ├── main.py
+    ├── ollama/               # Binario portable (gitignored) + models/ (gitignored)
     └── data/
         ├── Modelfile         # FROM {{BASE_MODEL}} — placeholder dinámico
         ├── manual_usuario.md
         └── appcli.desktop
 ```
 
-## Flujo de tool calling
+## Rutas del sistema
 
-```
-Usuario escribe → AIConsole → ToolRunner.chat()
-    │
-    ├─ System prompt: base + archivo IFC + elemento seleccionado
-    ├─ Tools: 8 herramientas IFC + obtener_seleccion (si hay selección)
-    │
-    └─ Bucle (no-streaming):
-         Backend → tool_calls? → IFCTools.ejecutar() o _fmt_seleccion()
-                               → añadir resultado → Backend → …
-         Sin tool_calls → respuesta final en streaming → on_token()
-```
+| Ruta | Contenido | Entorno |
+|---|---|---|
+| `src/appcli/ollama/ollama` | Binario portable | Desarrollo |
+| `src/appcli/ollama/models/` | Modelos Ollama | Desarrollo |
+| `~/.local/share/appcli/ollama/ollama` | Binario portable | Producción |
+| `~/.local/share/appcli/ollama/models/` | Modelos Ollama | Producción |
+| `~/.config/appcli/config.json` | Configuración y API keys | Ambos |
+| `~/.local/share/applications/appcli.desktop` | Acceso directo | Producción Linux |
 
-## Herramientas disponibles en la consola IA
+## Variables de entorno
 
-| Herramienta | Cuándo la usa el modelo |
+| Variable | Propósito |
 |---|---|
-| `obtener_seleccion(modo)` | Preguntas sobre el elemento activo |
-| `buscar_elementos` | Listar elementos de un tipo IFC |
-| `contar_elementos` | Contar elementos de un tipo |
-| `obtener_propiedades` | Propiedades por GlobalId |
-| `listar_plantas` | Plantas del edificio |
-| `elementos_de_planta` | Elementos de una planta concreta |
-| `calcular_area_total` | Suma de áreas por tipo |
-| `buscar_por_nombre` | Búsqueda por nombre parcial |
+| `APPCLI_OLLAMA_BIN` | Ruta al binario de Ollama (fijada por `dev_bootstrap.py`) |
+| `OLLAMA_MODELS` | Directorio de modelos (fijado automáticamente por `_prepare_models_dir()`) |
+| `ANTHROPIC_API_KEY` | Inyectada desde config.json al arrancar |
+| `OPENAI_API_KEY` | Inyectada desde config.json al arrancar |
 
 ## Configuración de usuario (~/.config/appcli/config.json)
 
-| Clave | Valores | Descripción |
-|---|---|---|
-| `base_model` | `qwen2.5:1.5b`, … | Modelo base de Ollama elegido en instalación |
-| `active_backend` | `ollama` / `claude` / `openai` | Backend activo |
-| `ollama_model` | `ifc-assistant`, … | Modelo Ollama activo |
-| `claude_model` | `claude-sonnet-4-6`, … | Modelo Claude activo |
-| `openai_model` | `gpt-4o-mini`, … | Modelo OpenAI activo |
-
-## Variables de entorno para backends cloud
-
-| Variable | Backend |
+| Clave | Descripción |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude (Anthropic) |
-| `OPENAI_API_KEY` | ChatGPT (OpenAI) |
+| `base_model` | Modelo base de Ollama elegido en instalación |
+| `active_backend` | Backend activo: `ollama` / `claude` / `openai` |
+| `ollama_model` | Modelo Ollama activo |
+| `claude_model` | Modelo Claude activo |
+| `openai_model` | Modelo OpenAI activo |
+| `anthropic_api_key` | Clave API de Anthropic (nunca se distribuye) |
+| `openai_api_key` | Clave API de OpenAI (nunca se distribuye) |
 
 ## Posibles próximos pasos
 
-- Herramientas para controlar la aplicación (abrir archivo, seleccionar elemento en árbol)
-- Tests unitarios para `ifc/query.py`, `ifc_tools.py` y los backends
-- Actualizar label de consola cuando se cambia el backend sin reiniciar
-- Generar nuevo wheel de distribución
+- Publicar en GitHub y crear primera Release con el wheel
+- Ampliar cobertura de tests: `app_tools.py`, `tool_runner.py`, `config_dialog.py`
+- Herramienta de selección inversa: seleccionar elementos en la IA desde el árbol y consultarlos por GlobalId
+- Exportar resultados de consultas a CSV o tabla

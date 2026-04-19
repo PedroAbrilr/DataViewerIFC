@@ -7,11 +7,11 @@
 │           UI  (appcli.ui)           │  Presentación y eventos de usuario
 ├─────────────────────────────────────┤
 │    IFC (appcli.ifc)                 │  Acceso y transformación del modelo IFC
-│    AI  (appcli.ai)                  │  Comunicación con Ollama
+│    AI  (appcli.ai)                  │  Backends IA y tool calling
 └─────────────────────────────────────┘
 ```
 
-La capa UI no importa directamente `ifcopenshell` ni `ollama`. Todo acceso pasa por `IFCLoader` y `OllamaClient`.
+La capa UI no importa directamente `ifcopenshell` ni `ollama`. Todo acceso pasa por `IFCLoader`, `OllamaClient` y los backends.
 
 ---
 
@@ -29,93 +29,106 @@ La capa UI no importa directamente `ifcopenshell` ni `ollama`. Todo acceso pasa 
 4. Se llama a `AIConsole.set_context(elemento, props)` para actualizar el contexto de la IA.
 5. La statusbar muestra nombre y tipo del elemento seleccionado.
 
-### Consulta a la IA
-1. `AIConsole._on_send()` recoge el texto del usuario.
-2. Construye el system prompt: instrucciones base + contexto del archivo + contexto del elemento seleccionado.
-3. Lanza hilo → `OllamaClient.stream(prompt, system=system_prompt)`.
-4. Cada token llega a la UI con `root.after(0, append_token)`.
+### Consulta a la IA (con tool calling)
+```
+Usuario escribe → AIConsole → ToolRunner.chat()
+    │
+    ├─ System prompt: base + archivo IFC + elemento seleccionado
+    ├─ Tools: 8 herramientas IFC + obtener_seleccion (si hay selección)
+    │          + 2 herramientas de app (AppTools)
+    │
+    └─ Bucle (no-streaming):
+         Backend → tool_calls? → IFCTools.ejecutar() o AppTools.ejecutar()
+                               → si _last_ids → on_seleccionar(ids) → tree_panel.select_by_ids()
+                               → añadir resultado → Backend → …
+         Sin tool_calls → respuesta final en streaming → on_token()
+```
 
-### Arranque de Ollama (al iniciar la app)
+### Sincronización de selección árbol ↔ IA
+Cuando `IFCTools.ejecutar()` devuelve una lista de elementos, `_fmt_lista()` guarda los GlobalIds en `_last_ids`. Tras la ejecución, `ToolRunner._ejecutar()` comprueba `_last_ids` y llama a `on_seleccionar(ids)`, que ha sido asignado en `App._actualizar_arbol()` como:
+```
+lambda ids: root.after(0, lambda i=ids: tree_panel.select_by_ids(i))
+```
+`TreePanel.select_by_ids()` usa el diccionario `_gid_to_iid` (construido en la carga del árbol) para traducir GlobalIds a items del Treeview.
+
+### Arranque de Ollama
 1. `App._iniciar_ollama()` lanza un hilo con `OllamaClient.ensure_running()`.
-2. `ensure_running()` comprueba si Ollama responde (`ping`), lo arranca si no.
-3. Descarga `qwen2.5:1.5b` si no está disponible.
-4. Crea el modelo `ifc-assistant` si no existe: lee `appcli/data/Modelfile`, sustituye `{{MANUAL_USUARIO}}` con `appcli/data/manual_usuario.md`, escribe un temporal y ejecuta `ollama create`.
+2. `ensure_running()` fija `OLLAMA_MODELS` al directorio `ollama/models/` junto al binario.
+3. Comprueba si Ollama responde (`ping`), lo arranca si no.
+4. Descarga el modelo base si no está disponible.
+5. Crea `ifc-assistant` si no existe: lee `appcli/data/Modelfile`, sustituye `{{MANUAL_USUARIO}}`, escribe temporal y ejecuta `ollama create`.
+
+### Cambio de backend IA
+1. Usuario abre **⚙ Configuración** → selecciona backend y modelo.
+2. Si el backend requiere API key y no está guardada, aparece diálogo emergente.
+3. La clave se guarda en `config.json` y se inyecta en `os.environ`.
+4. `App` recibe el nuevo backend, actualiza `tool_runner` y el label de la consola.
 
 ---
 
 ## Módulos clave
 
-### `appcli.ui.theme`
-- Define la paleta completa de colores (BG_DARK, BG_PANEL, ACCENT, etc.) y fuentes.
-- Función `apply(root)` configura `ttk.Style` sobre el tema base `equilux` de `ttkthemes`.
-- Todos los módulos UI importan `theme` — no hay valores hardcoded en los paneles.
-
 ### `appcli.ui.app.App`
 - Usa `ThemedTk(theme="equilux")` como ventana raíz.
-- Ensambla toolbar, layout principal (con márgenes) y statusbar.
+- Ensambla toolbar (Abrir IFC + ⚙ Configuración), layout principal y statusbar.
 - Única clase que coordina UI ↔ IFC ↔ IA.
 - Gestiona threading para operaciones bloqueantes con `root.after()`.
+- Al arrancar: llama a `config.inject_env()` para inyectar API keys en el entorno.
 
-### `appcli.ui.tree_panel.TreePanel(parent, on_select=None)`
-- Cabecera fija `ESTRUCTURA` + `ttk.Treeview` con scrollbar.
-- `load(nodos)` puebla el árbol desde la lista devuelta por `get_tree()`.
-- Mantiene `_elementos: dict[iid → elemento IFC]` para recuperar el objeto al seleccionar.
-
-### `appcli.ui.props_panel.PropsPanel`
-- Cabecera fija `PROPIEDADES` + `ttk.Treeview` en modo árbol+columnas.
-- `show(grupos)` acepta la lista de grupos de `get_properties()`.
-- PSets como nodos padre con tag `"pset"` (fondo y fuente diferenciados).
-- Columnas: Propiedad · Valor · Unidad.
+### `appcli.ui.config_dialog.ConfigDialog`
+- Ventana modal con tres secciones: **Asistente IA**, **Directorios del sistema**.
+- Selector de backend (radio) + combobox de modelo.
+- Llama a `pedir_api_key()` si el backend elegido no tiene clave guardada.
+- Al aplicar: guarda en `config.json`, inyecta en `os.environ`, actualiza `App.backend` y el label de la consola.
 
 ### `appcli.ui.ai_console.AIConsole`
-- Cabecera `CONSOLA IA` + modelo activo + área `tk.Text` (solo lectura) + barra de entrada.
+- Cabecera `CONSOLA IA` + backend activo (`lbl_modelo`) + área `tk.Text` + barra de entrada.
+- `set_runner(runner)` — actualiza el runner y el label del backend.
 - `set_archivo(nombre, total)` — actualiza el contexto del archivo IFC abierto.
 - `set_context(elemento, props)` — actualiza el contexto del elemento seleccionado.
-- El system prompt se construye dinámicamente en `_on_send()` concatenando las dos variables de contexto.
-- Streaming: tokens llegan desde el hilo a la UI con `root.after(0, lambda f=fragmento: _append_token(f))`.
-- Orden de empaquetado Tkinter: `input_bar` se empaqueta con `side=BOTTOM` **antes** que `output` con `expand=True` para evitar que quede cubierto.
+
+### `appcli.ai.ollama_client.OllamaClient`
+- `_ollama_bin()`: busca en `APPCLI_OLLAMA_BIN` → `~/.local/share/appcli/ollama/ollama` → sistema.
+- `_prepare_models_dir()`: deriva `models/` junto al binario y fija `OLLAMA_MODELS`.
+- `ensure_running()`: arranca Ollama → descarga modelo base → crea `ifc-assistant`.
+
+### `appcli.config`
+- `load()` / `save()` — lee y escribe `~/.config/appcli/config.json`.
+- `inject_env()` — inyecta `anthropic_api_key` y `openai_api_key` en `os.environ`.
+
+### `appcli.ui.theme`
+- Paleta completa de colores y fuentes. Función `apply(root)` configura `ttk.Style`.
+- Todos los módulos UI importan `theme` — no hay valores hardcoded en los paneles.
 
 ### `appcli.ifc.loader.IFCLoader`
 - `open(path)` → carga con `ifcopenshell.open()`.
 - `get_tree()` → jerarquía espacial recursiva (`IsDecomposedBy` + `ContainsElements`).
 - `get_properties(elemento)` → lista de grupos `{"pset", "props": [{"nombre","valor","unidad"}]}`.
-  - Cubre `IfcPropertySet` y `IfcElementQuantity` (con unidades m, m², m³, kg).
-
-### `appcli.ai.ollama_client.OllamaClient`
-- Rutas portables: `_PKG_DIR = Path(__file__).parent.parent` (apunta a `src/appcli/`).
-  - Binario: `_PKG_DIR / "bin" / "ollama"` (usa sistema si no existe).
-  - Modelos: `_PKG_DIR.parents[1] / "models"` (directorio junto al paquete instalado).
-  - Modelfile y manual: `_PKG_DIR / "data" / *`.
-- `ensure_running()`: arranca Ollama → descarga modelo base → crea `ifc-assistant` con sustitución del manual.
-- `query(prompt, system)` → respuesta completa.
-- `stream(prompt, system)` → generador de fragmentos para streaming en UI.
-- Modelo activo: `ifc-assistant` (creado sobre `qwen2.5:1.5b`).
 
 ---
 
-## Modelo de IA: `ifc-assistant`
+## Herramientas disponibles en la consola IA
 
-El modelo personalizado se crea dinámicamente al arrancar la app si no existe:
+### Herramientas IFC (`IFCTools`)
 
-```
-Modelfile (plantilla)
-  FROM qwen2.5:1.5b
-  PARAMETER temperature 0.3 / top_p 0.9 / num_ctx 8192
-  SYSTEM """
-    Eres el asistente de AppCLI...
-    ## Manual de la aplicación
-    {{MANUAL_USUARIO}}   ← sustituido con docs/manual_usuario.md
-    ## Conocimientos especializados
-    ...IFC, BIM, PSets...
-  """
-```
+| Herramienta | Cuándo la usa el modelo | Actualiza selección |
+|---|---|---|
+| `obtener_seleccion(modo)` | Preguntas sobre el elemento activo | No |
+| `buscar_elementos` | Listar elementos de un tipo IFC | Sí |
+| `contar_elementos` | Contar elementos de un tipo | No |
+| `obtener_propiedades` | Propiedades por GlobalId | No |
+| `listar_plantas` | Plantas del edificio | No |
+| `elementos_de_planta` | Elementos de una planta concreta | Sí |
+| `calcular_area_total` | Suma de áreas por tipo | No |
+| `buscar_por_nombre` | Búsqueda por nombre parcial | Sí |
+| `filtrar_por_propiedad` | Filtrar por valor de propiedad (modelo o selección) | Sí |
 
-El system prompt dinámico de cada consulta añade encima:
-```
-[instrucciones del Modelfile — fijas]
-Archivo IFC abierto: nombre.ifc (N elementos)
-Elemento seleccionado: ...nombre, tipo, propiedades...
-```
+### Herramientas de aplicación (`AppTools`)
+
+| Herramienta | Cuándo la usa el modelo |
+|---|---|
+| `estado_app` | Consultar qué archivo está abierto |
+| `cargar_ifc` | Abrir un archivo IFC por nombre |
 
 ---
 
@@ -124,6 +137,7 @@ Elemento seleccionado: ...nombre, tipo, propiedades...
 - **Threading**: operaciones lentas en hilo secundario; resultados a la UI con `root.after(0, callback)`.
 - **Coordinación en `App`**: los paneles no se conocen entre sí.
 - **`theme.py` como única fuente de verdad visual**: colores y fuentes centralizados.
-- **`get_properties()` devuelve lista de grupos**, no dict plano, para la agrupación por PSet en la UI.
-- **Ollama portable**: el binario y los modelos viven dentro del proyecto; `OLLAMA_MODELS` se sobreescribe con `env_portable()` solo cuando se usa el binario local.
-- **Modelfile como plantilla**: el placeholder `{{MANUAL_USUARIO}}` se resuelve en tiempo de creación del modelo, no en cada consulta. Para actualizar el manual basta con borrar `ifc-assistant` y relanzar la app.
+- **Credenciales en config.json**: las API keys se guardan localmente y se inyectan en `os.environ` al arrancar; nunca se distribuyen en el wheel.
+- **Rutas de Ollama por entorno**: `APPCLI_OLLAMA_BIN` separa desarrollo (binario portable del proyecto) de producción (instalado por `appcli-install`). `OLLAMA_MODELS` se deriva automáticamente del binario activo.
+- **Modelfile como plantilla**: el placeholder `{{MANUAL_USUARIO}}` se resuelve al crear el modelo, no en cada consulta. Para actualizar el manual basta con borrar `ifc-assistant` y relanzar la app.
+- **`dev_bootstrap.py` fuera del paquete**: configura el entorno de desarrollo sin contaminar el código de producción.

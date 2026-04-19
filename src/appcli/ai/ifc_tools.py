@@ -13,7 +13,8 @@ _MAX_RESULTADOS = 50  # límite de elementos en respuestas de lista
 class IFCTools:
     def __init__(self, loader):
         """loader — instancia de IFCLoader ya con un modelo abierto."""
-        self._loader = loader
+        self._loader  = loader
+        self._last_ids: list[str] = []
 
     # ------------------------------------------------------------------
     # Schemas JSON (formato OpenAI / Ollama)
@@ -153,6 +154,45 @@ class IFCTools:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "filtrar_por_propiedad",
+                    "description": (
+                        "Filtra elementos que tienen una propiedad con un valor concreto. "
+                        "Puede buscar en el modelo completo o en la selección actual."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "propiedad": {
+                                "type": "string",
+                                "description": "Nombre de la propiedad a filtrar (p.ej. 'IsExternal', 'Área').",
+                            },
+                            "valor": {
+                                "type": "string",
+                                "description": "Valor a buscar (comparación parcial, sin distinguir mayúsculas).",
+                            },
+                            "fuente": {
+                                "type": "string",
+                                "enum": ["modelo", "seleccion"],
+                                "description": (
+                                    "modelo: busca en todo el IFC (restringible por tipo). "
+                                    "seleccion: busca solo entre los elementos seleccionados."
+                                ),
+                            },
+                            "tipo": {
+                                "type": "string",
+                                "description": (
+                                    "Tipo IFC opcional para restringir la búsqueda en el modelo. "
+                                    "Ignorado cuando fuente=seleccion. Ejemplo: 'IfcWall'."
+                                ),
+                            },
+                        },
+                        "required": ["propiedad", "valor"],
+                    },
+                },
+            },
         ]
 
     # ------------------------------------------------------------------
@@ -160,6 +200,7 @@ class IFCTools:
     # ------------------------------------------------------------------
     def ejecutar(self, nombre: str, args: dict) -> str:
         """Ejecuta la herramienta indicada y devuelve el resultado como texto."""
+        self._last_ids = []
         modelo = self._loader.model
         if modelo is None:
             return "No hay ningún archivo IFC abierto."
@@ -196,6 +237,16 @@ class IFCTools:
                     _q.buscar_por_nombre(modelo, args["texto"]),
                     f"nombre '{args['texto']}'",
                 )
+            if nombre == "filtrar_por_propiedad":
+                fuente = args.get("fuente", "modelo")
+                if fuente == "seleccion":
+                    return "_DELEGAR_SELECCION_"
+                tipo = args.get("tipo", "")
+                elementos = modelo.by_type(_q._normalizar_tipo(tipo)) if tipo else modelo.by_type("IfcProduct")
+                return self._fmt_lista(
+                    _q.filtrar_por_propiedad(elementos, args["propiedad"], args["valor"]),
+                    f"propiedad '{args['propiedad']}' = '{args['valor']}'",
+                )
             return f"Herramienta desconocida: {nombre}"
         except KeyError as e:
             return f"Argumento requerido no proporcionado: {e}"
@@ -208,6 +259,7 @@ class IFCTools:
     def _fmt_lista(self, elementos: list, contexto: str) -> str:
         if not elementos:
             return f"No se encontraron elementos para: {contexto}."
+        self._last_ids = [e["id"] for e in elementos if e.get("id")]
         total = len(elementos)
         muestra = elementos[:_MAX_RESULTADOS]
         lineas = [f"- {e['nombre']} ({e['tipo']}) [id: {e['id']}]" for e in muestra]

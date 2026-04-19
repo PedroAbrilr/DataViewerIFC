@@ -15,6 +15,7 @@ from appcli.ifc.loader import IFCLoader
 from appcli.ai.ollama_client import OllamaClient
 from appcli.ai.ifc_tools import IFCTools
 from appcli.ai.tool_runner import ToolRunner
+from appcli.ai.app_tools import AppTools
 from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend
 from appcli.ui.config_dialog import ConfigDialog
 
@@ -34,11 +35,13 @@ class App:
         self._backend_id = cfg.get("active_backend", "ollama")
         self.backend = self._crear_backend(self._backend_id, cfg)
         self.tool_runner = ToolRunner(self.backend)
+        self._archivo_activo = None
 
         theme.apply(self.root)
         self._build_toolbar()
         self._build_statusbar()
         self._build_layout()
+        self._setup_app_tools()
         self._iniciar_ia()
 
     # ------------------------------------------------------------------
@@ -167,6 +170,25 @@ class App:
                                    side=tk.BOTTOM, pady=(0, 0))
 
     # ------------------------------------------------------------------
+    # AppTools
+    # ------------------------------------------------------------------
+    def _setup_app_tools(self):
+        app_tools = AppTools(
+            get_archivo_activo=lambda: self._archivo_activo,
+            on_cargar_archivo=self._cargar_ifc_desde_ia,
+        )
+        self.tool_runner.set_app_tools(app_tools)
+
+    def _cargar_ifc_desde_ia(self, path: str):
+        self.root.after(0, lambda: self._iniciar_carga_ifc(path))
+
+    def _iniciar_carga_ifc(self, path: str):
+        self.lbl_archivo.config(text="Cargando…", fg=theme.FG_SECONDARY)
+        self.status_elementos.config(text="")
+        self.status_elemento_activo.config(text="")
+        threading.Thread(target=self._cargar_ifc, args=(path,), daemon=True).start()
+
+    # ------------------------------------------------------------------
     # Lógica de IA
     # ------------------------------------------------------------------
     def _iniciar_ia(self):
@@ -212,10 +234,14 @@ class App:
     def _actualizar_arbol(self, nodos: list, path: str, total: int):
         self.tree_panel.load(nodos)
         nombre = path.split("/")[-1]
+        self._archivo_activo = nombre
         self.root.title(f"AppCLI — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
         self.status_elementos.config(text=f"{total} elementos cargados")
         self.tool_runner._ifc_tools = IFCTools(self.loader)
+        self.tool_runner.on_seleccionar = lambda ids: self.root.after(
+            0, lambda i=ids: self.tree_panel.select_by_ids(i)
+        )
         self.ai_console.set_archivo(nombre, total)
 
     def _contar_elementos(self, nodos: list) -> int:

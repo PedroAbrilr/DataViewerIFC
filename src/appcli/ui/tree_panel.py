@@ -37,6 +37,7 @@ class TreePanel:
     def load(self, nodos: list):
         self.tree.delete(*self.tree.get_children())
         self._elementos.clear()
+        self._gid_to_iid = {}
         for nodo in nodos:
             self._insertar(nodo, "")
 
@@ -44,8 +45,22 @@ class TreePanel:
         etiqueta = f"{nodo['nombre']}  [{nodo['tipo']}]"
         iid = self.tree.insert(padre, tk.END, text=etiqueta, open=True)
         self._elementos[iid] = nodo["elemento"]
+        try:
+            gid = nodo["elemento"].get_info().get("GlobalId")
+            if gid:
+                self._gid_to_iid[gid] = iid
+        except Exception:
+            pass
         for hijo in nodo["hijos"]:
             self._insertar(hijo, iid)
+
+    def select_by_ids(self, global_ids: list[str]) -> None:
+        """Selecciona en el árbol los elementos cuyos GlobalId se indican."""
+        iids = [self._gid_to_iid[gid] for gid in global_ids if gid in self._gid_to_iid]
+        if not iids:
+            return
+        self.tree.selection_set(iids)
+        self.tree.see(iids[0])
 
     def _on_select(self, event):
         if self.on_select is None:

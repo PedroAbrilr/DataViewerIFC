@@ -4,8 +4,10 @@
 
 ```bash
 source .venv/bin/activate
-.venv/bin/python src/appcli/main.py
+.venv/bin/python dev_bootstrap.py
 ```
+
+`dev_bootstrap.py` fija automáticamente `APPCLI_OLLAMA_BIN` al binario portable del repositorio (`src/appcli/ollama/ollama`) y `OLLAMA_MODELS` a `src/appcli/ollama/models/`. No se incluye en el wheel.
 
 ## Instalar dependencias
 
@@ -13,7 +15,8 @@ source .venv/bin/activate
 .venv/bin/pip install -e ".[dev]"
 ```
 
-Dependencias principales: `ifcopenshell`, `ollama`, `ttkthemes`.  
+Dependencias principales: `ifcopenshell`, `ollama`, `ttkthemes`.
+Dependencias opcionales: `anthropic`, `openai` (backends en la nube).
 Dependencias de desarrollo: `pytest`, `build`.
 
 ## Ejecutar tests
@@ -28,42 +31,55 @@ Dependencias de desarrollo: `pytest`, `build`.
 .venv/bin/python -m build --wheel
 ```
 
-El wheel se genera en `dist/appcli-<version>-py3-none-linux_x86_64.whl`.  
-Incluye el binario portable de Ollama, el Modelfile y el manual de usuario.  
-El tag de plataforma (`linux_x86_64`) está definido en `setup.cfg`.
+El wheel se genera en `dist/appcli-<version>-py3-none-any.whl`.
+Incluye el Modelfile y el manual de usuario (`appcli/data/`).
+El binario de Ollama **no se incluye** — el instalador (`appcli-install`) lo descarga en el equipo del usuario.
 
-Para instalar en otro equipo Linux x86_64:
+## Ollama — gestión en desarrollo
+
+El binario portable está en `src/appcli/ollama/ollama` (gitignored).
+Los modelos se descargan en `src/appcli/ollama/models/` (gitignored).
+
+`OllamaClient.ensure_running()` al arrancar:
+1. Fija `OLLAMA_MODELS` al directorio `models/` junto al binario.
+2. Comprueba si Ollama responde; lo arranca si no.
+3. Descarga el modelo base si no está disponible.
+4. Crea `ifc-assistant` desde `appcli/data/Modelfile` si no existe.
+
+Para forzar la recreación del asistente (p. ej. tras actualizar el manual):
 ```bash
-pip install dist/appcli-0.1.0-py3-none-linux_x86_64.whl
-```
-
-## Ollama — gestión automática
-
-La app gestiona Ollama sin intervención del usuario:
-
-1. Al arrancar, `OllamaClient.ensure_running()` comprueba si Ollama responde.
-2. Si no, lanza `bin/ollama serve` (binario portable) o `ollama` del sistema.
-3. Descarga `qwen2.5:1.5b` si no está disponible.
-4. Crea el modelo `ifc-assistant` desde `appcli/data/Modelfile` si no existe.
-
-Para forzar la recreación del modelo (p. ej. tras actualizar el manual):
-```bash
-ollama rm ifc-assistant
+OLLAMA_MODELS=src/appcli/ollama/models src/appcli/ollama/ollama rm ifc-assistant
 # relanzar la app
 ```
 
+**Primera ejecución tras instalar el binario portable**: Ollama necesita generar su clave de identidad (`~/.ollama/id_ed25519`). Si la descarga falla con ese error, ejecutar una vez:
+```bash
+OLLAMA_MODELS=src/appcli/ollama/models src/appcli/ollama/ollama serve &
+sleep 5 && kill %1
+```
+
+## Credenciales de backends en la nube
+
+Las claves API se guardan en `~/.config/appcli/config.json` e se inyectan en `os.environ` al arrancar. Se introducen desde la ventana **⚙ Configuración** de la app — no hace falta definirlas manualmente en el entorno.
+
 ## Actualizar el manual de usuario
 
-1. Editar `docs/manual_usuario.md` (fuente de verdad).
-2. Copiar a `src/appcli/data/manual_usuario.md`.
-3. Borrar el modelo `ifc-assistant` y relanzar la app para regenerarlo.
+1. Editar `src/appcli/data/manual_usuario.md`.
+2. Borrar el modelo `ifc-assistant` y relanzar la app para regenerarlo con el nuevo contenido.
 
----
+## Estructura de archivos relevante para desarrollo
 
-## Mejoras pendientes / backlog
-
-- **MCP / tool calling sobre el modelo IFC** — ver `plan_mcp_ifc.md`. Implementar `ifc/query.py`, `ai/ifc_tools.py` y `ai/tool_runner.py` para que el modelo pueda consultar el IFC completo (buscar, contar, agregar) más allá del elemento seleccionado.
-
-- **Diálogo de archivo nativo multiplataforma** — `tkinter.filedialog` ya es nativo en Windows y macOS; en Linux usa el diálogo Tk propio. La librería `plyer` unifica los tres sistemas. Implementar con fallback a `tkinter.filedialog` si `plyer` no está disponible.
-
-- **Wheel multiplataforma** — el binario de Ollama incluido es Linux x86_64. Para Windows/macOS habría que generar wheels separados con el binario de cada plataforma o descargar Ollama en el primer arranque.
+```
+AppCLI/
+├── dev_bootstrap.py          ← arranque en desarrollo
+├── src/appcli/
+│   ├── ollama/
+│   │   ├── ollama            ← binario portable (gitignored)
+│   │   └── models/           ← modelos (gitignored)
+│   ├── ui/
+│   │   └── config_dialog.py  ← ventana de configuración
+│   ├── ai/
+│   │   └── ollama_client.py  ← _ollama_bin(), _prepare_models_dir()
+│   └── config.py             ← load(), save(), inject_env()
+└── IAssistant/               ← documentos de trabajo (no en wheel)
+```

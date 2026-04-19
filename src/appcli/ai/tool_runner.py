@@ -22,8 +22,8 @@ _BUFFER_TOKENS   = 8
 
 class ToolRunner:
     def __init__(self, backend: AIBackend, ifc_tools=None):
-        self._backend   = backend
-        self._ifc_tools = ifc_tools
+        self.backend   = backend
+        self.ifc_tools = ifc_tools
         self._app_tools    = None
         self.on_seleccionar = None  # callable(global_ids: list[str])
         self.contexto_archivo   = ""
@@ -80,14 +80,14 @@ class ToolRunner:
                     if should_stop and should_stop():
                         return
 
-                    response = self._backend.chat_turn(system, messages, tools)
+                    response = self.backend.chat_turn(system, messages, tools)
 
                     if not response.tool_calls:
                         if response.content:
                             on_token(response.content)
                         return
 
-                    messages.append(self._backend.make_assistant_message(response))
+                    messages.append(self.backend.make_assistant_message(response))
 
                     for tc in response.tool_calls:
                         if should_stop and should_stop():
@@ -96,7 +96,7 @@ class ToolRunner:
                             on_tool_call(tc.name, tc.arguments)
                         resultado = self._ejecutar(tc.name, tc.arguments)
                         messages.append(
-                            self._backend.make_tool_message(tc.id, tc.name, resultado)
+                            self.backend.make_tool_message(tc.id, tc.name, resultado)
                         )
 
             # ---- Respuesta final en streaming ----
@@ -104,7 +104,7 @@ class ToolRunner:
                 return
 
             buffer = []
-            for text in self._backend.chat_stream(system, messages):
+            for text in self.backend.chat_stream(system, messages):
                 if should_stop and should_stop():
                     return
                 buffer.append(text)
@@ -122,7 +122,7 @@ class ToolRunner:
     # Herramientas
     # ------------------------------------------------------------------
     def _tools_disponibles(self) -> list:
-        tools = self._ifc_tools.definiciones() if self._ifc_tools else []
+        tools = self.ifc_tools.definiciones() if self.ifc_tools else []
         if self._elementos:
             tools = tools + [self._schema_seleccion()]
         if self._app_tools:
@@ -133,13 +133,13 @@ class ToolRunner:
         if nombre == "obtener_seleccion":
             modo = args.get("modo", "reducido")
             return self._fmt_seleccion(modo)
-        if self._ifc_tools:
-            resultado = self._ifc_tools.ejecutar(nombre, args)
+        if self.ifc_tools:
+            resultado = self.ifc_tools.ejecutar(nombre, args)
             if resultado == "_DELEGAR_SELECCION_":
                 return self._filtrar_seleccion(args)
             if not resultado.startswith("Herramienta desconocida"):
-                if self.on_seleccionar and self._ifc_tools._last_ids:
-                    self.on_seleccionar(self._ifc_tools._last_ids)
+                if self.on_seleccionar and self.ifc_tools._last_ids:
+                    self.on_seleccionar(self.ifc_tools._last_ids)
                 return resultado
         if self._app_tools:
             return self._app_tools.ejecutar(nombre, args)
@@ -153,7 +153,7 @@ class ToolRunner:
         resultado = _q.filtrar_por_propiedad(
             self._elementos, args["propiedad"], args["valor"]
         )
-        return self._ifc_tools._fmt_lista(
+        return self.ifc_tools._fmt_lista(
             resultado,
             f"propiedad '{args['propiedad']}' = '{args['valor']}' en la selección",
         )
@@ -259,10 +259,10 @@ class ToolRunner:
     def _fmt_estadistico(self) -> str:
         if len(self._elementos) <= 1:
             return self._fmt_agrupado()
-        if not self._ifc_tools:
+        if not self.ifc_tools:
             return "No hay modelo IFC cargado para calcular estadísticas."
 
-        loader = self._ifc_tools._loader
+        loader = self.ifc_tools._loader
         acum = defaultdict(list)
 
         for e in self._elementos:

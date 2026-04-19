@@ -15,7 +15,7 @@ class AIConsole:
         self._cancelado = False
         self._build()
         if tool_runner:
-            self.lbl_modelo.config(text=tool_runner._backend.display_name)
+            self.lbl_modelo.config(text=tool_runner.backend.display_name)
 
     # ------------------------------------------------------------------
     # Construcción de la UI
@@ -119,7 +119,7 @@ class AIConsole:
     def set_runner(self, runner):
         """Asigna el ToolRunner y muestra el modelo activo."""
         self._runner = runner
-        self.lbl_modelo.config(text=runner._backend.display_name)
+        self.lbl_modelo.config(text=runner.backend.display_name)
 
     def set_archivo(self, nombre: str, total: int):
         """Notifica al runner y muestra el mensaje en consola."""

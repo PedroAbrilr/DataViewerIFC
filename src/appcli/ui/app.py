@@ -238,7 +238,7 @@ class App:
         self.root.title(f"AppCLI — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
         self.status_elementos.config(text=f"{total} elementos cargados")
-        self.tool_runner._ifc_tools = IFCTools(self.loader)
+        self.tool_runner.ifc_tools = IFCTools(self.loader)
         self.tool_runner.on_seleccionar = lambda ids: self.root.after(
             0, lambda i=ids: self.tree_panel.select_by_ids(i)
         )

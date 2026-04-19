@@ -295,7 +295,7 @@ class ConfigDialog:
 
             self._app._backend_id = bid
             self._app.backend = nuevo_backend
-            self._app.tool_runner._backend = nuevo_backend
+            self._app.tool_runner.backend = nuevo_backend
             self._app.ai_console.set_runner(self._app.tool_runner)
 
             if bid == "ollama":

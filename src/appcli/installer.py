@@ -221,4 +221,7 @@ def main() -> None:
     if proc:
         proc.terminate()
 
-    print("\n  Instalación completada. Ejecuta 'appcli' para iniciar la aplicación.")
+    print("\n  Instalación completada.")
+    print("  · Desde el terminal:           appcli")
+    if plat.shortcut_path:
+        print("  · Desde el menú de aplicaciones: busca 'AppCLI IFC Viewer'")

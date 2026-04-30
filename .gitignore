@@ -1,3 +1,6 @@
+# Archivos de trabajo del asistente IA
+.Claude/
+
 # Entorno virtual
 .venv/
 

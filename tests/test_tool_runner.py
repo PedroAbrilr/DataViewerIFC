@@ -1,10 +1,12 @@
 """Tests unitarios para ai/tool_runner.py."""
 
 from unittest.mock import MagicMock
+
 import pytest
 
 from appcli.ai.tool_runner import ToolRunner
 from appcli.ai.backends.base import ChatResponse, ToolCall
+from appcli.plugins.registry import ToolRegistry
 
 
 # ------------------------------------------------------------------
@@ -24,15 +26,26 @@ def _props():
     ]}]
 
 
-def _props_numericas():
-    return [{"pset": "Qto_WallBaseQuantities", "props": [
-        {"nombre": "Length", "valor": "3.5", "unidad": "m"},
-        {"nombre": "Height", "valor": "2.8", "unidad": "m"},
-    ]}]
+def _make_tool(name, execute_return="ok", last_ids=None):
+    t = MagicMock()
+    t.name = name
+    t.schema = {"type": "function", "function": {"name": name}}
+    t.execute.return_value = execute_return
+    t.last_ids = last_ids or []
+    return t
 
 
-def _runner(ifc_tools=None):
-    return ToolRunner(backend=MagicMock(), ifc_tools=ifc_tools)
+def _registry(*tools):
+    reg = ToolRegistry()
+    for t in tools:
+        reg.register(t if not isinstance(t, str) else _make_tool(t))
+    return reg
+
+
+def _runner(registry_base=None, registry_seleccion=None):
+    return ToolRunner(backend=MagicMock(),
+                      registry_base=registry_base,
+                      registry_seleccion=registry_seleccion)
 
 
 # ------------------------------------------------------------------
@@ -73,32 +86,29 @@ def test_set_seleccion_varios_elementos():
 # _tools_disponibles
 # ------------------------------------------------------------------
 
-def test_tools_sin_nada():
+def test_tools_sin_registries():
     assert _runner()._tools_disponibles() == []
 
 
-def test_tools_con_seleccion_incluye_obtener_seleccion():
-    r = _runner()
+def test_tools_con_registry_base():
+    r = _runner(registry_base=_registry("buscar_elementos"))
+    nombres = [t["function"]["name"] for t in r._tools_disponibles()]
+    assert "buscar_elementos" in nombres
+
+
+def test_tools_con_seleccion_incluye_registry_seleccion():
+    r = _runner(registry_seleccion=_registry("obtener_seleccion"))
     r._elementos = [_elem()]
     nombres = [t["function"]["name"] for t in r._tools_disponibles()]
     assert "obtener_seleccion" in nombres
 
 
-def test_tools_con_app_tools():
-    r = _runner()
-    app = MagicMock()
-    app.definiciones.return_value = [{"type": "function", "function": {"name": "estado_app"}}]
-    r.set_app_tools(app)
-    nombres = [t["function"]["name"] for t in r._tools_disponibles()]
-    assert "estado_app" in nombres
-
-
-def test_tools_con_ifc_tools():
-    ifc = MagicMock()
-    ifc.definiciones.return_value = [{"type": "function", "function": {"name": "buscar_elementos"}}]
-    r = _runner(ifc_tools=ifc)
+def test_tools_sin_elementos_no_incluye_registry_seleccion():
+    r = _runner(registry_base=_registry("buscar_elementos"),
+                registry_seleccion=_registry("obtener_seleccion"))
     nombres = [t["function"]["name"] for t in r._tools_disponibles()]
     assert "buscar_elementos" in nombres
+    assert "obtener_seleccion" not in nombres
 
 
 # ------------------------------------------------------------------
@@ -124,130 +134,57 @@ def test_build_system_con_seleccion_y_herramientas():
 
 def test_build_system_sin_seleccion_con_herramientas():
     r = _runner()
-    system = r._build_system(True)
-    assert "modelo IFC completo" in system
-
-
-# ------------------------------------------------------------------
-# _fmt_seleccion
-# ------------------------------------------------------------------
-
-def test_fmt_sin_elementos():
-    assert "No hay ningún elemento" in _runner()._fmt_seleccion("reducido")
-
-
-def test_fmt_reducido_un_elemento():
-    r = _runner()
-    r._elementos = [_elem("Muro-A", "IfcWall")]
-    r._props = _props()
-    result = r._fmt_seleccion("reducido")
-    assert "Muro-A" in result
-    assert "Pset_WallCommon" in result
-
-
-def test_fmt_reducido_varios():
-    r = _runner()
-    r._elementos = [_elem(f"E{i}") for i in range(3)]
-    r._props = _props()
-    assert "3 elementos" in r._fmt_seleccion("reducido")
-
-
-def test_fmt_reducido_trunca_mas_de_20():
-    r = _runner()
-    r._elementos = [_elem(f"E{i}") for i in range(25)]
-    r._props = _props()
-    result = r._fmt_seleccion("reducido")
-    assert "más" in result
-
-
-def test_fmt_agrupado_un_elemento():
-    r = _runner()
-    r._elementos = [_elem("Muro-A", "IfcWall", "gid-xyz")]
-    r._props = _props()
-    result = r._fmt_seleccion("agrupado")
-    assert "gid-xyz" in result
-    assert "IsExternal" in result
-
-
-def test_fmt_agrupado_varios_elementos():
-    r = _runner()
-    r._elementos = [_elem(f"E{i}") for i in range(2)]
-    r._props = [{"pset": "Pset_WallCommon", "props": [
-        {"nombre": "IsExternal", "valor": "True", "unidad": "", "varios": False},
-    ]}]
-    result = r._fmt_seleccion("agrupado")
-    assert "combinadas" in result
-
-
-def test_fmt_estadistico_un_elemento_delega_agrupado():
-    r = _runner()
-    r._elementos = [_elem("Muro-A", "IfcWall", "gid-1")]
-    r._props = _props()
-    result = r._fmt_seleccion("estadistico")
-    assert "gid-1" in result
-
-
-def test_fmt_estadistico_sin_ifc_tools():
-    r = _runner(ifc_tools=None)
-    r._elementos = [_elem(), _elem()]
-    r._props = _props()
-    result = r._fmt_seleccion("estadistico")
-    assert "No hay modelo IFC" in result
-
-
-def test_fmt_estadistico_propiedades_numericas():
-    ifc_tools = MagicMock()
-    loader = MagicMock()
-    loader.get_properties.return_value = _props_numericas()
-    ifc_tools._loader = loader
-    r = _runner(ifc_tools=ifc_tools)
-    elems = [_elem(f"E{i}") for i in range(2)]
-    r._elementos = elems
-    r._props = _props_numericas()
-    result = r._fmt_seleccion("estadistico")
-    assert "mín" in result
-    assert "Length" in result
+    assert "modelo IFC completo" in r._build_system(True)
 
 
 # ------------------------------------------------------------------
 # _ejecutar
 # ------------------------------------------------------------------
 
-def test_ejecutar_obtener_seleccion_sin_elementos():
-    assert "No hay ningún elemento" in _runner()._ejecutar("obtener_seleccion", {})
-
-
-def test_ejecutar_delega_a_ifc_tools():
-    ifc = MagicMock()
-    ifc.ejecutar.return_value = "resultado ifc"
-    ifc._last_ids = []
-    r = _runner(ifc_tools=ifc)
+def test_ejecutar_delega_a_registry_base():
+    tool = _make_tool("buscar_elementos", execute_return="resultado ifc")
+    r = _runner(registry_base=_registry(tool))
     assert r._ejecutar("buscar_elementos", {"tipo": "IfcWall"}) == "resultado ifc"
-    ifc.ejecutar.assert_called_once_with("buscar_elementos", {"tipo": "IfcWall"})
+    tool.execute.assert_called_once_with({"tipo": "IfcWall"})
 
 
-def test_ejecutar_delega_a_app_tools():
+def test_ejecutar_delega_a_registry_seleccion():
+    tool = _make_tool("obtener_seleccion", execute_return="selección ok")
+    r = _runner(registry_seleccion=_registry(tool))
+    assert r._ejecutar("obtener_seleccion", {}) == "selección ok"
+
+
+def test_ejecutar_seleccion_tiene_prioridad_sobre_base():
+    base_tool = _make_tool("obtener_seleccion", execute_return="desde base")
+    sel_tool  = _make_tool("obtener_seleccion", execute_return="desde seleccion")
+    # No podemos registrar el mismo nombre en el mismo registry, usamos dos
+    r = _runner(registry_base=_registry(base_tool),
+                registry_seleccion=_registry(sel_tool))
+    assert r._ejecutar("obtener_seleccion", {}) == "desde seleccion"
+
+
+def test_ejecutar_herramienta_no_disponible():
     r = _runner()
-    app = MagicMock()
-    app.ejecutar.return_value = "estado ok"
-    r.set_app_tools(app)
-    assert r._ejecutar("estado_app", {}) == "estado ok"
+    assert "no disponible" in r._ejecutar("herramienta_x", {})
 
 
 def test_ejecutar_dispara_on_seleccionar():
-    ifc = MagicMock()
-    ifc.ejecutar.return_value = "2 encontrados"
-    ifc._last_ids = ["id1", "id2"]
-    r = _runner(ifc_tools=ifc)
+    tool = _make_tool("buscar_elementos", execute_return="2 encontrados",
+                      last_ids=["id1", "id2"])
+    r = _runner(registry_base=_registry(tool))
     cb = MagicMock()
     r.on_seleccionar = cb
     r._ejecutar("buscar_elementos", {})
     cb.assert_called_once_with(["id1", "id2"])
 
 
-def test_ejecutar_sin_modelo_ifc():
-    r = _runner(ifc_tools=None)
-    assert "No hay modelo IFC" in r._ejecutar("buscar_elementos", {})
+def test_ejecutar_no_dispara_on_seleccionar_si_last_ids_vacio():
+    tool = _make_tool("buscar_elementos", execute_return="nada", last_ids=[])
+    r = _runner(registry_base=_registry(tool))
+    cb = MagicMock()
+    r.on_seleccionar = cb
+    r._ejecutar("buscar_elementos", {})
+    cb.assert_not_called()
 
 
 # ------------------------------------------------------------------
@@ -257,7 +194,7 @@ def test_ejecutar_sin_modelo_ifc():
 def test_chat_sin_tools_stream():
     backend = MagicMock()
     backend.chat_stream.return_value = iter(["Hola ", "mundo"])
-    r = ToolRunner(backend=backend, ifc_tools=None)
+    r = ToolRunner(backend=backend)
     tokens = []
     r.chat("pregunta", on_token=tokens.append)
     assert "".join(tokens) == "Hola mundo"
@@ -273,17 +210,13 @@ def test_chat_con_tool_call():
     backend.make_assistant_message.return_value = {"role": "assistant"}
     backend.make_tool_message.return_value = {"role": "tool"}
 
-    app = MagicMock()
-    app.definiciones.return_value = [{"type": "function", "function": {"name": "estado_app"}}]
-    app.ejecutar.return_value = "sin archivo"
-
-    r = ToolRunner(backend=backend, ifc_tools=None)
-    r.set_app_tools(app)
+    tool = _make_tool("estado_app", execute_return="sin archivo")
+    r = ToolRunner(backend=backend, registry_base=_registry(tool))
 
     tokens = []
     r.chat("pregunta", on_token=tokens.append)
     assert "respuesta final" in "".join(tokens)
-    app.ejecutar.assert_called_once_with("estado_app", {})
+    tool.execute.assert_called_once_with({})
 
 
 def test_chat_should_stop_antes_de_tool():
@@ -292,11 +225,8 @@ def test_chat_should_stop_antes_de_tool():
     backend.chat_turn.return_value = ChatResponse(tool_calls=[tc])
     backend.make_assistant_message.return_value = {}
 
-    app = MagicMock()
-    app.definiciones.return_value = [{"type": "function", "function": {"name": "estado_app"}}]
-
-    r = ToolRunner(backend=backend, ifc_tools=None)
-    r.set_app_tools(app)
+    tool = _make_tool("estado_app")
+    r = ToolRunner(backend=backend, registry_base=_registry(tool))
 
     tokens = []
     r.chat("pregunta", on_token=tokens.append, should_stop=lambda: True)
@@ -314,12 +244,8 @@ def test_chat_on_tool_call_callback():
     backend.make_tool_message.return_value = {}
     backend.chat_stream.return_value = iter([])
 
-    app = MagicMock()
-    app.definiciones.return_value = [{"type": "function", "function": {"name": "estado_app"}}]
-    app.ejecutar.return_value = "ok"
-
-    r = ToolRunner(backend=backend, ifc_tools=None)
-    r.set_app_tools(app)
+    tool = _make_tool("estado_app", execute_return="ok")
+    r = ToolRunner(backend=backend, registry_base=_registry(tool))
 
     tool_calls_recibidos = []
     r.chat("pregunta", on_token=lambda t: None,
@@ -330,7 +256,7 @@ def test_chat_on_tool_call_callback():
 def test_chat_error_backend_notifica():
     backend = MagicMock()
     backend.chat_stream.side_effect = RuntimeError("fallo de red")
-    r = ToolRunner(backend=backend, ifc_tools=None)
+    r = ToolRunner(backend=backend)
     tokens = []
     r.chat("pregunta", on_token=tokens.append)
     assert "Error" in "".join(tokens)

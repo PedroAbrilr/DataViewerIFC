@@ -1,4 +1,4 @@
-"""Orquestador de tool calling entre el backend de IA e IFCTools.
+"""Orquestador de tool calling entre el backend de IA y el ToolRegistry.
 
 ToolRunner:
   - mantiene el contexto del archivo IFC y del elemento seleccionado
@@ -6,8 +6,6 @@ ToolRunner:
   - ejecuta el bucle de tool calling (backend → herramientas → backend…)
   - entrega los tokens finales vía callback
 """
-
-from collections import defaultdict
 
 from appcli.ai.backends.base import AIBackend
 
@@ -20,18 +18,15 @@ _MAX_ITERACIONES = 5
 
 
 class ToolRunner:
-    def __init__(self, backend: AIBackend, ifc_tools=None):
-        self.backend   = backend
-        self.ifc_tools = ifc_tools
-        self._app_tools    = None
-        self.on_seleccionar = None  # callable(global_ids: list[str])
-        self.contexto_archivo   = ""
-        self.contexto_seleccion = ""
-        self._elementos = []
-        self._props     = []
-
-    def set_app_tools(self, app_tools) -> None:
-        self._app_tools = app_tools
+    def __init__(self, backend: AIBackend, registry_base=None, registry_seleccion=None):
+        self.backend = backend
+        self._registry_base      = registry_base
+        self._registry_seleccion = registry_seleccion
+        self.on_seleccionar      = None  # callable(global_ids: list[str])
+        self.contexto_archivo    = ""
+        self.contexto_seleccion  = ""
+        self._elementos          = []
+        self._props              = []
 
     # ------------------------------------------------------------------
     # API de contexto
@@ -73,7 +68,6 @@ class ToolRunner:
         messages = [{"role": "user", "content": prompt}]
 
         try:
-            # ---- Bucle de tool calling ----
             if tools:
                 for _ in range(_MAX_ITERACIONES):
                     if should_stop and should_stop():
@@ -98,7 +92,6 @@ class ToolRunner:
                             self.backend.make_tool_message(tc.id, tc.name, resultado)
                         )
 
-            # ---- Respuesta final en streaming ----
             if should_stop and should_stop():
                 return
 
@@ -114,179 +107,21 @@ class ToolRunner:
     # Herramientas
     # ------------------------------------------------------------------
     def _tools_disponibles(self) -> list:
-        tools = self.ifc_tools.definiciones() if self.ifc_tools else []
-        if self._elementos:
-            tools = tools + [self._schema_seleccion()]
-        if self._app_tools:
-            tools = tools + self._app_tools.definiciones()
+        tools = self._registry_base.schemas() if self._registry_base else []
+        if self._elementos and self._registry_seleccion:
+            tools = tools + self._registry_seleccion.schemas()
         return tools
 
     def _ejecutar(self, nombre: str, args: dict) -> str:
-        if nombre == "obtener_seleccion":
-            modo = args.get("modo", "reducido")
-            return self._fmt_seleccion(modo)
-        if self.ifc_tools:
-            resultado = self.ifc_tools.ejecutar(nombre, args)
-            if resultado == "_DELEGAR_SELECCION_":
-                return self._filtrar_seleccion(args)
-            if not resultado.startswith("Herramienta desconocida"):
-                if self.on_seleccionar and self.ifc_tools._last_ids:
-                    self.on_seleccionar(self.ifc_tools._last_ids)
-                return resultado
-        if self._app_tools:
-            return self._app_tools.ejecutar(nombre, args)
-        return "No hay modelo IFC cargado."
-
-    def _filtrar_seleccion(self, args: dict) -> str:
-        from appcli.ifc import query as _q
-        from appcli.ai.ifc_tools import IFCTools
-        if not self._elementos:
-            return "No hay ningún elemento seleccionado."
-        resultado = _q.filtrar_por_propiedad(
-            self._elementos, args["propiedad"], args["valor"]
-        )
-        return self.ifc_tools._fmt_lista(
-            resultado,
-            f"propiedad '{args['propiedad']}' = '{args['valor']}' en la selección",
-        )
-
-    def _schema_seleccion(self) -> dict:
-        return {
-            "type": "function",
-            "function": {
-                "name": "obtener_seleccion",
-                "description": (
-                    "Devuelve información sobre el/los elemento/s actualmente "
-                    "seleccionado/s en la interfaz. "
-                    "Úsala SIEMPRE que el usuario pregunte sobre 'este elemento', "
-                    "'el elemento seleccionado', 'sus propiedades', 'sus características' "
-                    "o cualquier detalle del elemento activo. "
-                    "No necesita ningún identificador: accede directamente a la selección actual."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "modo": {
-                            "type": "string",
-                            "enum": ["reducido", "agrupado", "estadistico"],
-                            "description": (
-                                "reducido: nombre, tipo y nombres de PSets disponibles. "
-                                "agrupado: todas las propiedades con sus valores — "
-                                "USA ESTE MODO cuando el usuario pida propiedades, "
-                                "características, dimensiones o detalles del elemento. "
-                                "estadistico: resumen numérico mín/máx/media/suma "
-                                "(recomendado con varios elementos seleccionados)."
-                            ),
-                        }
-                    },
-                    "required": [],
-                },
-            },
-        }
-
-    # ------------------------------------------------------------------
-    # Formateadores de selección
-    # ------------------------------------------------------------------
-    def _fmt_seleccion(self, modo: str) -> str:
-        if not self._elementos:
-            return "No hay ningún elemento seleccionado en la aplicación."
-        if modo == "agrupado":
-            return self._fmt_agrupado()
-        if modo == "estadistico":
-            return self._fmt_estadistico()
-        return self._fmt_reducido()
-
-    def _fmt_reducido(self) -> str:
-        psets = ", ".join(g["pset"] for g in self._props) or "ninguno"
-
-        if len(self._elementos) == 1:
-            e      = self._elementos[0]
-            info   = e.get_info()
-            nombre = info.get("Name") or e.is_a()
-            tipo   = e.is_a()
-            return (
-                f"Elemento seleccionado: {nombre} ({tipo})\n"
-                f"PSets disponibles: {psets}"
-            )
-
-        lineas = [f"{len(self._elementos)} elementos seleccionados:"]
-        for e in self._elementos[:20]:
-            info   = e.get_info()
-            nombre = info.get("Name") or e.is_a()
-            lineas.append(f"  - {nombre} ({e.is_a()})")
-        if len(self._elementos) > 20:
-            lineas.append(f"  ... y {len(self._elementos) - 20} más")
-        e_activo = self._elementos[-1]
-        nombre_activo = e_activo.get_info().get("Name") or e_activo.is_a()
-        lineas.append(f"\nPSets disponibles en elemento activo ({nombre_activo}): {psets}")
-        return "\n".join(lineas)
-
-    def _fmt_agrupado(self) -> str:
-        if len(self._elementos) == 1:
-            e      = self._elementos[0]
-            info   = e.get_info()
-            nombre = info.get("Name") or e.is_a()
-            tipo   = e.is_a()
-            gid    = info.get("GlobalId", "")
-            lineas = [
-                f"Elemento seleccionado: {nombre} ({tipo})",
-                f"GlobalId: {gid}",
-            ]
-            for grupo in self._props:
-                lineas.append(f"\n{grupo['pset']}:")
-                for p in grupo["props"]:
-                    unidad = f" {p['unidad']}" if p["unidad"] else ""
-                    lineas.append(f"  {p['nombre']}: {p['valor']}{unidad}")
-            return "\n".join(lineas)
-
-        lineas = [f"{len(self._elementos)} elementos seleccionados — propiedades combinadas:"]
-        for grupo in self._props:
-            lineas.append(f"\n{grupo['pset']}:")
-            for p in grupo["props"]:
-                unidad = f" {p['unidad']}" if p["unidad"] else ""
-                nota   = " (valores distintos)" if p.get("varios") else ""
-                lineas.append(f"  {p['nombre']}: {p['valor']}{unidad}{nota}")
-        return "\n".join(lineas)
-
-    def _fmt_estadistico(self) -> str:
-        if len(self._elementos) <= 1:
-            return self._fmt_agrupado()
-        if not self.ifc_tools:
-            return "No hay modelo IFC cargado para calcular estadísticas."
-
-        loader = self.ifc_tools._loader
-        acum = defaultdict(list)
-
-        for e in self._elementos:
-            for grupo in loader.get_properties(e):
-                for p in grupo["props"]:
-                    try:
-                        acum[(grupo["pset"], p["nombre"], p["unidad"])].append(
-                            float(p["valor"])
-                        )
-                    except (ValueError, TypeError):
-                        pass
-
-        n = len(self._elementos)
-        lineas = [f"Resumen estadístico — {n} elementos seleccionados:"]
-        encontrado = False
-
-        for (pset, nombre, unidad), vals in acum.items():
-            if len(vals) < 2:
-                continue
-            encontrado = True
-            u     = f" {unidad}" if unidad else ""
-            media = sum(vals) / len(vals)
-            lineas.append(
-                f"  {pset} / {nombre}: "
-                f"mín={min(vals):.4g}{u}  máx={max(vals):.4g}{u}  "
-                f"media={media:.4g}{u}  suma={sum(vals):.4g}{u}  "
-                f"({len(vals)}/{n} elementos)"
-            )
-
-        if not encontrado:
-            lineas.append("  No se encontraron propiedades numéricas en varios elementos.")
-        return "\n".join(lineas)
+        if self._registry_seleccion and nombre in self._registry_seleccion:
+            return self._registry_seleccion.execute(nombre, args)
+        if self._registry_base and nombre in self._registry_base:
+            resultado = self._registry_base.execute(nombre, args)
+            tool = self._registry_base.get_tool(nombre)
+            if self.on_seleccionar and tool and getattr(tool, "last_ids", []):
+                self.on_seleccionar(tool.last_ids)
+            return resultado
+        return "Herramienta no disponible."
 
     # ------------------------------------------------------------------
     # Helpers

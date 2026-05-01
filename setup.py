@@ -9,7 +9,6 @@ class BuildPy(_build_py):
     def run(self):
         copies = [
             ("docs/manual_usuario.md", "src/appcli/data/manual_usuario.md"),
-            ("Modelfile",              "src/appcli/data/Modelfile"),
         ]
         for src, dst in copies:
             s = Path(src)

@@ -2,6 +2,7 @@
 
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
 from ttkthemes import ThemedTk
@@ -13,11 +14,15 @@ from appcli.ui.props_panel import PropsPanel
 from appcli.ui.ai_console import AIConsole
 from appcli.ifc.loader import IFCLoader
 from appcli.ai.ollama_client import OllamaClient
-from appcli.ai.ifc_tools import IFCTools
 from appcli.ai.tool_runner import ToolRunner
-from appcli.ai.app_tools import AppTools
 from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend
 from appcli.ui.config_dialog import ConfigDialog
+from appcli.plugins.registry import ToolRegistry
+from appcli.plugins.ifc.buscar import BuscarElementos, BuscarPorNombre, ContarElementos
+from appcli.plugins.ifc.estructura import ListarPlantas, ElementosDePlanta, CalcularAreaTotal
+from appcli.plugins.ifc.propiedades import ObtenerPropiedades, FiltrarPorPropiedad
+from appcli.plugins.ifc.seleccion import ObtenerSeleccion
+from appcli.plugins.app.herramientas import EstadoApp, CargarIfc
 
 MARGIN = 10
 
@@ -41,7 +46,7 @@ class App:
         self._build_toolbar()
         self._build_statusbar()
         self._build_layout()
-        self._setup_app_tools()
+        self._setup_registries()
         self._iniciar_ia()
 
     # ------------------------------------------------------------------
@@ -145,14 +150,32 @@ class App:
                                    side=tk.BOTTOM, pady=(0, 0))
 
     # ------------------------------------------------------------------
-    # AppTools
+    # Registries de herramientas
     # ------------------------------------------------------------------
-    def _setup_app_tools(self):
-        app_tools = AppTools(
-            get_archivo_activo=lambda: self._archivo_activo,
-            on_cargar_archivo=self._cargar_ifc_desde_ia,
+    def _setup_registries(self):
+        def get_context():
+            return self.tool_runner._elementos, self.tool_runner._props
+
+        reg_base = ToolRegistry()
+        reg_base.register(BuscarElementos(self.loader))
+        reg_base.register(BuscarPorNombre(self.loader))
+        reg_base.register(ContarElementos(self.loader))
+        reg_base.register(ObtenerPropiedades(self.loader))
+        reg_base.register(FiltrarPorPropiedad(self.loader, get_context=get_context))
+        reg_base.register(ListarPlantas(self.loader))
+        reg_base.register(ElementosDePlanta(self.loader))
+        reg_base.register(CalcularAreaTotal(self.loader))
+        reg_base.register(EstadoApp(lambda: self._archivo_activo))
+        reg_base.register(CargarIfc(self._cargar_ifc_desde_ia))
+
+        reg_sel = ToolRegistry()
+        reg_sel.register(ObtenerSeleccion(get_context=get_context, loader=self.loader))
+
+        self.tool_runner._registry_base      = reg_base
+        self.tool_runner._registry_seleccion = reg_sel
+        self.tool_runner.on_seleccionar = lambda ids: self.root.after(
+            0, lambda i=ids: self.tree_panel.select_by_ids(i)
         )
-        self.tool_runner.set_app_tools(app_tools)
 
     def _cargar_ifc_desde_ia(self, path: str):
         self.root.after(0, lambda: self._iniciar_carga_ifc(path))
@@ -213,10 +236,6 @@ class App:
         self.root.title(f"AppCLI — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
         self.status_elementos.config(text=f"{total} elementos cargados")
-        self.tool_runner.ifc_tools = IFCTools(self.loader)
-        self.tool_runner.on_seleccionar = lambda ids: self.root.after(
-            0, lambda i=ids: self.tree_panel.select_by_ids(i)
-        )
         self.ai_console.set_archivo(nombre, total)
 
     def _contar_elementos(self, nodos: list) -> int:

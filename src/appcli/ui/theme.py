@@ -44,12 +44,12 @@ _BUTTON_STYLES = {
 
 def make_button(parent, text: str, command, variant: str = "accent", **kwargs) -> tk.Button:
     """Crea un tk.Button con el estilo del tema. variant: 'accent', 'surface' o 'danger'."""
-    style = dict(_BUTTON_STYLES.get(variant, _BUTTON_STYLES["accent"]))
+    style = {"padx": 14, "pady": 5}
+    style.update(_BUTTON_STYLES.get(variant, _BUTTON_STYLES["accent"]))
     style.update(kwargs)
     return tk.Button(
         parent, text=text, command=command,
         relief="flat", bd=0, cursor="hand2",
-        padx=14, pady=5,
         **style,
     )
 

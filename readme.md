@@ -90,7 +90,7 @@ O bien desde el acceso directo del escritorio (Linux) o el menú de inicio (Wind
 La ventana principal se divide en tres zonas:
 
 ```
-┌─ Toolbar ─────────────────────────────────────  ⚙ Configuración ─┐
+┌─ Toolbar ──────────────────────────────────────  ⚙ Configuración ─┐
 ├────────────────────┬──────────────────────────────────────────────┤
 │   Árbol de         │   Propiedades                                │
 │   elementos        │                                              │
@@ -101,7 +101,7 @@ La ventana principal se divide en tres zonas:
 │       └ Planta     │     ...      │ ...  │ ...                    │
 │         └ Muro     │                                              │
 ├────────────────────┴──────────────────────────────────────────────┤
-│  Consola IA                                          backend activo│
+│  Consola IA                                         backend activo│
 │  ┌────────────────────────────────────────────┐ [Enviar]          │
 │  │ Escribe tu pregunta aquí...                │                   │
 │  └────────────────────────────────────────────┘                   │

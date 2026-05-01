@@ -17,12 +17,7 @@ from appcli.ai.ollama_client import OllamaClient
 from appcli.ai.tool_runner import ToolRunner
 from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend
 from appcli.ui.config_dialog import ConfigDialog
-from appcli.plugins.registry import ToolRegistry
-from appcli.plugins.ifc.buscar import BuscarElementos, BuscarPorNombre, ContarElementos
-from appcli.plugins.ifc.estructura import ListarPlantas, ElementosDePlanta, CalcularAreaTotal
-from appcli.plugins.ifc.propiedades import ObtenerPropiedades, FiltrarPorPropiedad
-from appcli.plugins.ifc.seleccion import ObtenerSeleccion
-from appcli.plugins.app.herramientas import EstadoApp, CargarIfc
+from appcli.plugins.registro import construir_registries
 
 MARGIN = 10
 
@@ -156,21 +151,12 @@ class App:
         def get_context():
             return self.tool_runner._elementos, self.tool_runner._props
 
-        reg_base = ToolRegistry()
-        reg_base.register(BuscarElementos(self.loader))
-        reg_base.register(BuscarPorNombre(self.loader))
-        reg_base.register(ContarElementos(self.loader))
-        reg_base.register(ObtenerPropiedades(self.loader))
-        reg_base.register(FiltrarPorPropiedad(self.loader, get_context=get_context))
-        reg_base.register(ListarPlantas(self.loader))
-        reg_base.register(ElementosDePlanta(self.loader))
-        reg_base.register(CalcularAreaTotal(self.loader))
-        reg_base.register(EstadoApp(lambda: self._archivo_activo))
-        reg_base.register(CargarIfc(self._cargar_ifc_desde_ia))
-
-        reg_sel = ToolRegistry()
-        reg_sel.register(ObtenerSeleccion(get_context=get_context, loader=self.loader))
-
+        reg_base, reg_sel = construir_registries(
+            loader=self.loader,
+            get_context=get_context,
+            get_archivo_activo=lambda: self._archivo_activo,
+            on_cargar=self._cargar_ifc_desde_ia,
+        )
         self.tool_runner._registry_base      = reg_base
         self.tool_runner._registry_seleccion = reg_sel
         self.tool_runner.on_seleccionar = lambda ids: self.root.after(

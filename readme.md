@@ -309,3 +309,4 @@ Calcula el área total de muros exteriores
 | El asistente no encuentra el archivo IFC | El archivo no está en el directorio de trabajo | Ejecuta `appcli` desde el directorio donde se encuentra el archivo |
 | Error al abrir el archivo | Archivo IFC corrupto o versión no soportada | Prueba con otro archivo |
 | Ollama tarda en responder | El modelo está cargando por primera vez | Espera unos segundos; las respuestas siguientes serán más rápidas |
+

@@ -26,14 +26,15 @@ Tienes acceso a las siguientes herramientas. Úsalas siempre que necesites datos
 
 ### Herramientas de consulta IFC
 
-- **buscar_elementos(tipo)** — devuelve nombre, tipo y GlobalId de todos los elementos de ese tipo. Úsala cuando el usuario pregunte por un conjunto de elementos ("los muros", "todas las puertas").
+- **buscar_elementos(tipo)** — busca todos los elementos de un tipo IFC y los selecciona en el árbol. Úsala cuando el usuario pregunte por un conjunto de elementos ("los muros", "todas las puertas").
 - **contar_elementos(tipo)** — cuenta cuántos elementos hay de un tipo. Úsala antes de listarlos si solo se pide el número.
 - **obtener_propiedades(global_id)** — devuelve todos los PSets y atributos de un elemento concreto. Úsala cuando el usuario pregunte por las propiedades de un elemento específico. Si hay un elemento seleccionado en el contexto, usa su GlobalId directamente.
+- **obtener_seleccion(modo)** — devuelve información sobre el elemento o elementos actualmente seleccionados en la interfaz; no necesita ningún identificador. Úsala SIEMPRE que el usuario pregunte sobre "este elemento", "el seleccionado", sus propiedades o sus características. Modos: "reducido" (nombre, tipo y PSets disponibles), "agrupado" (todas las propiedades con valores — usa este modo para preguntas sobre dimensiones, materiales o detalles), "estadistico" (resumen mín/máx/media/suma — recomendado cuando hay varios elementos seleccionados).
 - **listar_plantas()** — lista todas las plantas (IfcBuildingStorey) del modelo con su nombre e id.
-- **elementos_de_planta(planta)** — lista los elementos contenidos en una planta. Llama primero a listar_plantas si no conoces el nombre exacto.
+- **elementos_de_planta(planta)** — lista los elementos de una planta y los selecciona en el árbol. Llama primero a listar_plantas si no conoces el nombre exacto.
 - **calcular_area_total(tipo)** — suma las áreas de todos los elementos de un tipo. Úsala para preguntas del tipo "¿cuál es el área total de los forjados?".
-- **buscar_por_nombre(texto)** — busca elementos cuyo nombre contiene el texto indicado (parcial, sin distinguir mayúsculas).
-- **filtrar_por_propiedad(propiedad, valor, fuente, tipo)** — filtra elementos que tienen una propiedad con un valor concreto. Usa fuente="seleccion" cuando el usuario pida filtrar "la selección actual" o "los elementos seleccionados"; usa fuente="modelo" en cualquier otro caso.
+- **buscar_por_nombre(texto)** — busca elementos cuyo nombre contiene el texto indicado (parcial, sin distinguir mayúsculas) y los selecciona en el árbol.
+- **filtrar_por_propiedad(propiedad, valor, fuente, tipo)** — filtra elementos que tienen una propiedad con un valor concreto y los selecciona en el árbol. Usa fuente="seleccion" cuando el usuario pida filtrar "la selección actual" o "los elementos seleccionados"; usa fuente="modelo" en cualquier otro caso.
 
 ### Herramientas de la aplicación
 
@@ -51,9 +52,15 @@ Al inicio de cada turno recibirás información con este formato:
 
 ```
 Archivo: <nombre>.ifc  (<N> elementos)
-Elemento seleccionado: <Nombre> [<TipoIFC>]  GlobalId: <id>
-Propiedades: ...
+
+# Un elemento seleccionado:
+Elemento seleccionado: <Nombre> [<TipoIFC>]
+
+# Varios elementos seleccionados:
+Elementos seleccionados: <N>
 ```
+
+La aplicación permite selección múltiple en el árbol. Cuando hay varios elementos seleccionados, usa obtener_seleccion con modo="estadistico" para preguntas numéricas, o modo="agrupado" para ver propiedades combinadas.
 
 Si no hay elemento seleccionado, el campo correspondiente estará vacío. En ese caso, si el usuario dice "este elemento" o "el elemento seleccionado", pídele que seleccione uno en el árbol antes de continuar.
 

@@ -43,8 +43,8 @@ class ElementosDePlanta:
         "function": {
             "name": "elementos_de_planta",
             "description": (
-                "Devuelve los elementos contenidos en una planta concreta. "
-                "Usa el nombre de la planta tal como aparece en listar_plantas."
+                "Devuelve y selecciona en el árbol los elementos contenidos en una "
+                "planta concreta. Usa el nombre de la planta tal como aparece en listar_plantas."
             ),
             "parameters": {
                 "type": "object",

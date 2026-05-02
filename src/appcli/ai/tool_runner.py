@@ -78,7 +78,8 @@ class ToolRunner:
                     if not response.tool_calls:
                         if response.content:
                             on_token(response.content)
-                        return
+                            return
+                        break  # respuesta vacía sin tool calls → fallback a streaming
 
                     messages.append(self.backend.make_assistant_message(response))
 
@@ -130,17 +131,24 @@ class ToolRunner:
         parts = [_SYSTEM_BASE]
         if self.contexto_archivo:
             parts.append(self.contexto_archivo)
+        else:
+            parts.append("No hay ningún archivo IFC cargado actualmente.")
         if self.contexto_seleccion:
             parts.append(self.contexto_seleccion)
         if has_tools:
             if self._elementos:
                 parts.append(
-                    "Tienes herramientas disponibles. Para cualquier pregunta sobre el "
-                    "elemento seleccionado usa obtener_seleccion — nunca pidas un "
-                    "identificador al usuario para consultar el elemento activo."
+                    "Tienes herramientas disponibles. Responde desde el contexto cuando "
+                    "tengas la información; para el elemento seleccionado usa "
+                    "obtener_seleccion — nunca pidas un identificador al usuario."
                 )
             else:
                 parts.append(
-                    "Tienes herramientas disponibles para consultar el modelo IFC completo."
+                    "Tienes herramientas disponibles. Las herramientas de búsqueda "
+                    "(buscar_elementos, buscar_por_nombre, elementos_de_planta, "
+                    "filtrar_por_propiedad) seleccionan automáticamente los elementos "
+                    "encontrados en el árbol de la aplicación. Úsalas cuando el usuario "
+                    "pida buscar, mostrar o seleccionar elementos. Responde desde el "
+                    "contexto cuando ya tengas la información."
                 )
         return "\n\n".join(parts)

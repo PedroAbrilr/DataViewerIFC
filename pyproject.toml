@@ -25,7 +25,7 @@ dev = ["pytest"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-appcli = ["data/manual_usuario.md"]
+appcli = ["data/manual_usuario.md", "data/Modelfile"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

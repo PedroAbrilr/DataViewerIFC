@@ -11,6 +11,7 @@ class TreePanel:
         self.frame = ttk.Frame(parent)
         self.on_select = on_select
         self._elementos = {}
+        self._gid_to_iid = {}
         self._build()
 
     def _build(self):

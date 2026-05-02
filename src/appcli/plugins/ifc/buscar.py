@@ -11,8 +11,8 @@ class BuscarElementos:
         "function": {
             "name": "buscar_elementos",
             "description": (
-                "Busca todos los elementos IFC de un tipo dado en el modelo. "
-                "Devuelve nombre, tipo IFC y GlobalId de cada elemento."
+                "Busca y selecciona en el árbol todos los elementos IFC de un tipo dado. "
+                "Devuelve nombre, tipo IFC y GlobalId de cada elemento encontrado."
             ),
             "parameters": {
                 "type": "object",
@@ -91,8 +91,8 @@ class BuscarPorNombre:
         "function": {
             "name": "buscar_por_nombre",
             "description": (
-                "Busca elementos cuyo Name contiene el texto indicado "
-                "(búsqueda parcial, sin distinguir mayúsculas)."
+                "Busca y selecciona en el árbol los elementos cuyo Name contiene "
+                "el texto indicado (búsqueda parcial, sin distinguir mayúsculas)."
             ),
             "parameters": {
                 "type": "object",

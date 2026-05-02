@@ -49,8 +49,8 @@ class FiltrarPorPropiedad:
         "function": {
             "name": "filtrar_por_propiedad",
             "description": (
-                "Filtra elementos que tienen una propiedad con un valor concreto. "
-                "Puede buscar en el modelo completo o en la selección actual."
+                "Filtra y selecciona en el árbol los elementos que tienen una propiedad "
+                "con un valor concreto. Puede buscar en el modelo completo o en la selección actual."
             ),
             "parameters": {
                 "type": "object",

@@ -14,6 +14,8 @@ _DEFAULTS: dict = {
     "ollama_model":      "ifc-assistant",
     "claude_model":      "claude-sonnet-4-6",
     "openai_model":      "gpt-4o-mini",
+    "gemini_model":      "gemini-2.0-flash",
+    "proyecto_dir":      "",
 }
 
 
@@ -35,6 +37,8 @@ def inject_env(cfg: dict | None = None) -> None:
         os.environ.setdefault("ANTHROPIC_API_KEY", cfg["anthropic_api_key"])
     if cfg.get("openai_api_key"):
         os.environ.setdefault("OPENAI_API_KEY", cfg["openai_api_key"])
+    if cfg.get("google_api_key"):
+        os.environ.setdefault("GOOGLE_API_KEY", cfg["google_api_key"])
 
 
 def save(data: dict) -> None:

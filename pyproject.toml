@@ -9,6 +9,7 @@ dependencies = [
     "ttkthemes",
     "anthropic>=0.40.0",
     "openai>=1.0.0",
+    "google-generativeai>=0.8.0",
 ]
 
 [project.gui-scripts]
@@ -25,7 +26,7 @@ dev = ["pytest"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-appcli = ["data/manual_usuario.md", "data/Modelfile"]
+appcli = ["data/manual_usuario.md", "data/Modelfile", "data/system_prompt.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

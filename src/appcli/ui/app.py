@@ -2,6 +2,7 @@
 
 import threading
 import tkinter as tk
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
@@ -15,7 +16,7 @@ from appcli.ui.ai_console import AIConsole
 from appcli.ifc.loader import IFCLoader
 from appcli.ai.ollama_client import OllamaClient
 from appcli.ai.tool_runner import ToolRunner
-from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend
+from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend, GeminiBackend
 from appcli.ui.config_dialog import ConfigDialog
 from appcli.plugins.registro import construir_registries
 
@@ -43,6 +44,7 @@ class App:
         self._build_layout()
         self._setup_registries()
         self._iniciar_ia()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ------------------------------------------------------------------
     # Creación de backend
@@ -52,6 +54,8 @@ class App:
             return ClaudeBackend(model=cfg.get("claude_model", "claude-sonnet-4-6"))
         if backend_id == "openai":
             return OpenAIBackend(model=cfg.get("openai_model", "gpt-4o-mini"))
+        if backend_id == "gemini":
+            return GeminiBackend(model=cfg.get("gemini_model", "gemini-2.0-flash"))
         return OllamaBackend(model=cfg.get("ollama_model", "ifc-assistant"))
 
     # ------------------------------------------------------------------
@@ -115,8 +119,12 @@ class App:
         )
         self.status_elemento_activo.pack(side=tk.LEFT)
 
+        try:
+            _ver = f"v{_pkg_version('appcli')}"
+        except PackageNotFoundError:
+            _ver = ""
         self.status_modelo = tk.Label(
-            bar, text="IFC Viewer  v0.1",
+            bar, text=f"AppCLI  {_ver}",
             bg=theme.BG_DARK, fg=theme.FG_SECONDARY,
             font=theme.FONT_SMALL, anchor="e",
         )
@@ -294,6 +302,10 @@ class App:
                 })
             result.append({"pset": pset, "props": props_list})
         return result
+
+    def _on_close(self):
+        self.ollama.stop()
+        self.root.destroy()
 
     def run(self):
         self.root.mainloop()

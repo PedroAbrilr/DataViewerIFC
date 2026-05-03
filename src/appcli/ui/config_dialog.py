@@ -1,6 +1,7 @@
 """Ventana de configuración: backend IA y directorios del sistema."""
 
 import os
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
@@ -12,25 +13,29 @@ from appcli.ui import theme
 MARGIN = 20
 
 _MODELOS = {
-    "ollama": ["ifc-assistant"],
-    "claude": ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"],
-    "openai": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+    "ollama":  ["ifc-assistant"],
+    "claude":  ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"],
+    "openai":  ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+    "gemini":  ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
 }
 
 _LABELS = {
     "ollama": "Ollama (local)",
     "claude": "Claude (Anthropic)",
     "openai": "ChatGPT (OpenAI)",
+    "gemini": "Gemini (Google)",
 }
 
 _ENV_KEY = {
     "claude": "ANTHROPIC_API_KEY",
-    "openai":  "OPENAI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
 }
 
 _CFG_KEY = {
     "claude": "anthropic_api_key",
-    "openai":  "openai_api_key",
+    "openai": "openai_api_key",
+    "gemini": "google_api_key",
 }
 
 
@@ -137,7 +142,7 @@ class ConfigDialog:
         self._app = app
         self._dlg = tk.Toplevel(parent)
         self._dlg.title("Configuración")
-        self._dlg.geometry("540x480")
+        self._dlg.geometry("540x560")
         self._dlg.resizable(False, False)
         self._dlg.configure(bg=theme.BG_PANEL)
         self._dlg.transient(parent)
@@ -187,6 +192,48 @@ class ConfigDialog:
         )
         lbl_aviso.pack(anchor="w", pady=(4, 0))
 
+        # --- Subsección Ollama: recrear modelo ---
+        frame_ollama = tk.Frame(frame_ia, bg=theme.BG_SURFACE)
+        frame_ollama.pack(fill=tk.X, pady=(10, 0))
+
+        btn_recrear = theme.make_button(
+            frame_ollama, "Recrear modelo ifc-assistant", None, variant="surface",
+        )
+        btn_recrear.pack(anchor="w")
+
+        lbl_progreso = tk.Label(
+            frame_ollama, text="",
+            bg=theme.BG_SURFACE, fg=theme.FG_SECONDARY,
+            font=theme.FONT_SMALL, wraplength=460, justify="left",
+        )
+        lbl_progreso.pack(anchor="w", pady=(4, 0))
+
+        def _recrear_modelo():
+            btn_recrear.config(state=tk.DISABLED)
+            lbl_progreso.config(text="Iniciando...", fg=theme.FG_SECONDARY)
+
+            def on_status(msg):
+                color = "#e06c75" if msg.lower().startswith("error") else theme.FG_SECONDARY
+                self._dlg.after(0, lambda m=msg, c=color: lbl_progreso.config(text=m, fg=c))
+
+            def _run():
+                ok = self._app.ollama.recrear_modelo(on_status=on_status)
+                def _done():
+                    btn_recrear.config(state=tk.NORMAL)
+                    if ok:
+                        lbl_progreso.config(text="Modelo listo.", fg=theme.ACCENT)
+                self._dlg.after(0, _done)
+
+            threading.Thread(target=_run, daemon=True).start()
+
+        btn_recrear.config(command=_recrear_modelo)
+
+        def _mostrar_ocultar_ollama(*_):
+            if var_backend.get() == "ollama":
+                frame_ollama.pack(fill=tk.X, pady=(10, 0))
+            else:
+                frame_ollama.pack_forget()
+
         def _actualizar_combo(*_):
             bid = var_backend.get()
             modelos = list(_MODELOS.get(bid, []))
@@ -196,9 +243,10 @@ class ConfigDialog:
                     modelos.append(base)
             combo_modelo["values"] = modelos
             modelo_actual = {
-                "ollama": cfg.get("ollama_model", "ifc-assistant"),
-                "claude": cfg.get("claude_model", "claude-sonnet-4-6"),
-                "openai": cfg.get("openai_model", "gpt-4o-mini"),
+                "ollama":  cfg.get("ollama_model",  "ifc-assistant"),
+                "claude":  cfg.get("claude_model",  "claude-sonnet-4-6"),
+                "openai":  cfg.get("openai_model",  "gpt-4o-mini"),
+                "gemini":  cfg.get("gemini_model",  "gemini-2.0-flash"),
             }.get(bid, modelos[0] if modelos else "")
             var_modelo.set(modelo_actual if modelo_actual in modelos else (modelos[0] if modelos else ""))
 
@@ -211,9 +259,10 @@ class ConfigDialog:
             lbl_aviso.config(text=msg if not ok else "")
 
         for child in frame_radios.winfo_children():
-            child.config(command=_actualizar_combo)
+            child.config(command=lambda: (_actualizar_combo(), _mostrar_ocultar_ollama()))
 
         _actualizar_combo()
+        _mostrar_ocultar_ollama()
 
         # ---- Sección directorios ----
         tk.Label(

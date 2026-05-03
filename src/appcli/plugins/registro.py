@@ -11,6 +11,7 @@ from appcli.plugins.ifc.estructura import ListarPlantas, ElementosDePlanta, Calc
 from appcli.plugins.ifc.propiedades import ObtenerPropiedades, FiltrarPorPropiedad
 from appcli.plugins.ifc.seleccion import ObtenerSeleccion
 from appcli.plugins.app.herramientas import EstadoApp, CargarIfc
+from appcli.plugins.app.proyecto import ObtenerDirectorioProyecto, EstablecerDirectorioProyecto, BuscarArchivosIfc
 
 
 def construir_registries(loader, get_context, get_archivo_activo, on_cargar):
@@ -31,6 +32,9 @@ def construir_registries(loader, get_context, get_archivo_activo, on_cargar):
     reg_base.register(CalcularAreaTotal(loader))
     reg_base.register(EstadoApp(get_archivo_activo))
     reg_base.register(CargarIfc(on_cargar))
+    reg_base.register(ObtenerDirectorioProyecto())
+    reg_base.register(EstablecerDirectorioProyecto())
+    reg_base.register(BuscarArchivosIfc())
 
     reg_sel = ToolRegistry()
     reg_sel.register(ObtenerSeleccion(get_context=get_context, loader=loader))

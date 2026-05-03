@@ -1,4 +1,4 @@
-# AppCLI — Manual de usuario v1.1
+# AppCLI — Manual de usuario v1.2
 
 ## ¿Qué es AppCLI?
 
@@ -35,43 +35,20 @@ appcli-env\Scripts\activate
 Descarga el wheel desde el repositorio del proyecto e instálalo con pip:
 
 ```bash
-pip install https://github.com/PedroAbrilr/ifc_IA_CLI/releases/latest/download/appcli-1.1.0-py3-none-any.whl
+pip install https://github.com/PedroAbrilr/ifc_IA_CLI/releases/latest/download/appcli-1.2.0-py3-none-any.whl
 ```
 
 El paquete incluye todas las dependencias necesarias (ifcopenshell, ollama, anthropic, openai, ttkthemes).
 
-### 3. Ejecutar el instalador
-
-El instalador configura el backend de IA local (Ollama) y el acceso directo de escritorio:
+### 3. Arrancar la aplicación
 
 ```bash
-appcli-install
+appcli
 ```
 
-El instalador realiza los pasos siguientes:
+La primera vez que uses el asistente local (Ollama), la aplicación descargará automáticamente el modelo de lenguaje. Esto puede tardar unos minutos. Las siguientes veces arrancará al instante.
 
-1. Comprueba si Ollama ya está instalado en el sistema. Si no lo está, lo descarga e instala automáticamente en el directorio de datos de AppCLI.
-2. Muestra un menú para elegir el modelo de lenguaje base:
-   - **Qwen 2.5 1.5B** — ligero, ~1 GB, recomendado para equipos con poca RAM.
-   - **Qwen 2.5 3B** — equilibrio calidad/recursos, ~2 GB.
-   - **Qwen 2.5 7B** — mejor calidad, ~5 GB.
-   - **Llama 3.2 3B** — buen soporte de herramientas, ~2 GB.
-   - **Mistral 7B** — alta calidad, ~5 GB.
-   - También puedes introducir el nombre de cualquier otro modelo disponible en Ollama.
-3. Descarga el modelo elegido y crea el asistente personalizado `ifc-assistant` con instrucciones especializadas en BIM/IFC.
-4. Guarda la configuración en el directorio de configuración de usuario.
-5. Instala el acceso directo de escritorio (solo Linux).
-
-> Si solo vas a usar los backends de IA en la nube (Claude o ChatGPT), puedes omitir `appcli-install`. La aplicación funciona sin Ollama.
-
-### Rutas de instalación por sistema operativo
-
-| Elemento | Linux | macOS | Windows |
-|---|---|---|---|
-| Configuración | `~/.config/appcli/` | `~/.config/appcli/` | `%APPDATA%\appcli\` |
-| Binario Ollama | `~/.local/share/appcli/ollama/` | `~/.local/share/appcli/ollama/` | `%LOCALAPPDATA%\appcli\ollama\` |
-| Modelos Ollama | `~/.local/share/appcli/ollama/models/` | `~/.local/share/appcli/ollama/models/` | `%LOCALAPPDATA%\appcli\ollama\models\` |
-| Acceso directo | `~/.local/share/applications/` | — | — |
+> Si vas a usar exclusivamente los asistentes en la nube (Claude o ChatGPT), no necesitas esperar la descarga del modelo local.
 
 ---
 
@@ -81,7 +58,7 @@ El instalador realiza los pasos siguientes:
 appcli
 ```
 
-O bien desde el acceso directo del escritorio (Linux) o el menú de inicio (Windows/macOS, si se ha instalado manualmente).
+O bien desde el acceso directo del escritorio (Linux).
 
 ---
 
@@ -134,13 +111,13 @@ También puedes pedir al asistente que abra un archivo (ver sección de ejemplos
 
 ## Asistentes de IA disponibles
 
-AppCLI soporta tres backends de IA que pueden cambiarse en cualquier momento desde **⚙ Configuración**:
+AppCLI soporta cuatro backends de IA que pueden cambiarse en cualquier momento desde **⚙ Configuración**:
 
 ### Ollama (local) — recomendado para privacidad
 
-Ejecuta el modelo de lenguaje directamente en tu equipo. No envía ningún dato a servidores externos. El modelo `ifc-assistant` es un asistente personalizado con instrucciones especializadas en BIM/IFC, creado durante la instalación.
+Ejecuta el modelo de lenguaje directamente en tu equipo. No envía ningún dato a servidores externos. El modelo `ifc-assistant` es un asistente personalizado con instrucciones especializadas en BIM/IFC, descargado automáticamente al arrancar la app por primera vez.
 
-- **Ventaja**: privacidad total, no requiere conexión a internet después de la instalación.
+- **Ventaja**: privacidad total, no requiere conexión a internet después de la primera descarga.
 - **Requisito**: disponer de suficiente RAM (mínimo 4 GB libres para modelos ligeros).
 - **Modelos soportados**: cualquier modelo disponible en [ollama.com/library](https://ollama.com/library).
 
@@ -166,6 +143,17 @@ Utiliza los modelos GPT de OpenAI a través de su API.
   - `gpt-4o` — mayor calidad.
   - `gpt-3.5-turbo` — más económico.
 
+### Gemini (Google)
+
+Utiliza los modelos Gemini de Google a través de su API.
+
+- **Ventaja**: buena velocidad de respuesta y cuota gratuita generosa.
+- **Requisito**: clave de API de Google AI Studio (obtenla en [aistudio.google.com](https://aistudio.google.com)).
+- **Modelos disponibles**:
+  - `gemini-2.0-flash` — rápido, recomendado.
+  - `gemini-1.5-flash` — alternativa ligera.
+  - `gemini-1.5-pro` — mayor capacidad de contexto.
+
 ---
 
 ## Ventana de configuración
@@ -177,10 +165,12 @@ Pulsa **⚙ Configuración** en la barra superior para abrir la ventana de confi
 Permite seleccionar el backend activo y el modelo concreto a utilizar. Al cambiar de backend:
 
 - Se muestra un aviso si el backend no está disponible (por ejemplo, si falta la clave de API o Ollama no está instalado).
-- Si seleccionas Claude o ChatGPT por primera vez y no hay clave de API guardada, la aplicación la pedirá automáticamente al pulsar **Aplicar**.
+- Si seleccionas Claude, ChatGPT o Gemini por primera vez y no hay clave de API guardada, la aplicación la pedirá automáticamente al pulsar **Aplicar**.
 - La clave se guarda de forma local en el archivo de configuración del usuario y no se incluye en ninguna distribución.
 
 Al pulsar **Aplicar**, el cambio de backend tiene efecto inmediatamente sin necesidad de reiniciar la aplicación.
+
+Cuando el backend seleccionado es Ollama, aparece el botón **Recrear modelo ifc-assistant**. Úsalo si el asistente no responde o si has cambiado el modelo base: descarga el modelo si es necesario y reconstruye el asistente personalizado.
 
 ### Sección «Directorios del sistema»
 
@@ -215,6 +205,26 @@ El asistente tiene acceso a las siguientes herramientas de consulta:
 | `filtrar_por_propiedad` | Filtra por propiedad y valor, en el modelo o en la selección |
 | `estado_app` | Consulta si hay un archivo IFC abierto |
 | `cargar_ifc` | Abre un archivo IFC desde el directorio de trabajo |
+| `obtener_directorio_proyecto` | Consulta el directorio de proyecto configurado |
+| `establecer_directorio_proyecto` | Cambia el directorio de proyecto |
+| `buscar_archivos_ifc` | Busca recursivamente archivos .ifc en el directorio de proyecto |
+
+### Ejemplos: directorio de proyecto
+
+El asistente puede gestionar un directorio de proyecto para localizar archivos IFC sin necesidad de indicar rutas completas.
+
+```
+¿Cuál es el directorio de proyecto configurado?
+```
+```
+Establece /home/usuario/proyectos como directorio de proyecto
+```
+```
+¿Qué archivos IFC hay disponibles?
+```
+```
+Busca todos los archivos IFC en el proyecto
+```
 
 ### Ejemplos: abrir archivos
 
@@ -304,9 +314,9 @@ Calcula el área total de muros exteriores
 |---|---|---|
 | El árbol aparece vacío | El archivo IFC no tiene jerarquía espacial | Verifica el archivo con otro visor IFC |
 | La tabla de propiedades está vacía | El elemento no tiene PSets asignados | Normal en elementos genéricos |
-| La consola IA no responde (Ollama) | Ollama no está instalado o no arranca | Ejecuta `appcli-install` |
-| Error de clave API (Claude o ChatGPT) | Clave no guardada o incorrecta | Abre **⚙ Configuración**, cambia de backend y vuelve a introducir la clave |
-| El asistente no encuentra el archivo IFC | El archivo no está en el directorio de trabajo | Ejecuta `appcli` desde el directorio donde se encuentra el archivo |
+| La consola IA no responde (Ollama) | Ollama no ha arrancado o el modelo no está creado | Espera unos segundos; si persiste, usa **Recrear modelo ifc-assistant** en ⚙ Configuración |
+| Error de clave API | Clave no guardada o incorrecta (Claude, ChatGPT o Gemini) | Abre **⚙ Configuración**, cambia de backend y vuelve a introducir la clave |
+| El asistente no encuentra el archivo IFC | El archivo no está en el directorio de trabajo ni en el directorio de proyecto | Configura el directorio de proyecto o ejecuta `appcli` desde la carpeta del archivo |
 | Error al abrir el archivo | Archivo IFC corrupto o versión no soportada | Prueba con otro archivo |
 | Ollama tarda en responder | El modelo está cargando por primera vez | Espera unos segundos; las respuestas siguientes serán más rápidas |
 

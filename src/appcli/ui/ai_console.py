@@ -5,6 +5,23 @@ import tkinter as tk
 
 from appcli.ui import theme
 
+_TOOL_LABELS = {
+    "buscar_elementos":               "Buscando elementos...",
+    "contar_elementos":               "Contando elementos...",
+    "obtener_propiedades":            "Leyendo propiedades...",
+    "obtener_seleccion":              "Leyendo selección...",
+    "listar_plantas":                 "Listando plantas...",
+    "elementos_de_planta":            "Buscando en la planta...",
+    "calcular_area_total":            "Calculando área total...",
+    "buscar_por_nombre":              "Buscando por nombre...",
+    "filtrar_por_propiedad":          "Filtrando elementos...",
+    "estado_app":                     "Comprobando estado...",
+    "cargar_ifc":                     "Buscando archivo IFC...",
+    "obtener_directorio_proyecto":    "Consultando directorio de proyecto...",
+    "establecer_directorio_proyecto": "Guardando directorio de proyecto...",
+    "buscar_archivos_ifc":            "Buscando archivos IFC...",
+}
+
 
 class AIConsole:
     def __init__(self, parent, tool_runner=None):
@@ -164,7 +181,8 @@ class AIConsole:
             root.after(0, lambda t=texto: self._append_token(t))
 
         def on_tool_call(nombre, _args):
-            root.after(0, lambda n=nombre: self._append(f"[llamando a {n}...]\n", "info"))
+            label = _TOOL_LABELS.get(nombre, f"Consultando {nombre}...")
+            root.after(0, lambda l=label: self._append(f"[{l}]\n", "info"))
 
         try:
             self._runner.chat(prompt, on_token, on_tool_call, lambda: self._cancelado)

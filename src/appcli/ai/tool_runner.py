@@ -7,12 +7,23 @@ ToolRunner:
   - entrega los tokens finales vía callback
 """
 
-from appcli.ai.backends.base import AIBackend
+import json
+from pathlib import Path
 
-_SYSTEM_BASE = (
-    "Eres un asistente experto en BIM e IFC. "
-    "Responde de forma concisa y en el mismo idioma en que te hagan la pregunta."
-)
+from appcli.ai.backends.base import AIBackend, ToolCall
+
+_SYSTEM_PROMPT_FILE = Path(__file__).parent.parent / "data" / "system_prompt.txt"
+
+def _load_system_base() -> str:
+    try:
+        return _SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
+    except Exception:
+        return (
+            "Eres un asistente experto en BIM e IFC. "
+            "Responde de forma concisa y en el mismo idioma en que te hagan la pregunta."
+        )
+
+_SYSTEM_BASE = _load_system_base()
 
 _MAX_ITERACIONES = 5
 
@@ -77,9 +88,20 @@ class ToolRunner:
 
                     if not response.tool_calls:
                         if response.content:
-                            on_token(response.content)
-                            return
-                        break  # respuesta vacía sin tool calls → fallback a streaming
+                            tc = self._parse_json_tool_call(response.content)
+                            if tc and self._tool_existe(tc.name):
+                                messages.append(self.backend.make_assistant_message(response))
+                                if on_tool_call:
+                                    on_tool_call(tc.name, tc.arguments)
+                                resultado = self._ejecutar(tc.name, tc.arguments)
+                                messages.append(
+                                    self.backend.make_tool_message(tc.id, tc.name, resultado)
+                                )
+                                continue
+                            if not response.content.strip().startswith("{"):
+                                on_token(response.content)
+                                return
+                        break  # JSON inválido o vacío → fallback a streaming
 
                     messages.append(self.backend.make_assistant_message(response))
 
@@ -127,6 +149,28 @@ class ToolRunner:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _tool_existe(self, nombre: str) -> bool:
+        if self._registry_base and nombre in self._registry_base:
+            return True
+        if self._registry_seleccion and nombre in self._registry_seleccion:
+            return True
+        return False
+
+    def _parse_json_tool_call(self, content: str):
+        """Intenta parsear JSON de texto como tool call (fallback para modelos pequeños)."""
+        stripped = content.strip()
+        if not stripped.startswith("{"):
+            return None
+        try:
+            data = json.loads(stripped)
+            name = data.get("name") or data.get("function")
+            args = data.get("parameters") or data.get("arguments") or data.get("args") or {}
+            if name and isinstance(args, dict):
+                return ToolCall(id="0", name=name, arguments=args)
+        except Exception:
+            pass
+        return None
+
     def _build_system(self, has_tools: bool) -> str:
         parts = [_SYSTEM_BASE]
         if self.contexto_archivo:
@@ -135,20 +179,4 @@ class ToolRunner:
             parts.append("No hay ningún archivo IFC cargado actualmente.")
         if self.contexto_seleccion:
             parts.append(self.contexto_seleccion)
-        if has_tools:
-            if self._elementos:
-                parts.append(
-                    "Tienes herramientas disponibles. Responde desde el contexto cuando "
-                    "tengas la información; para el elemento seleccionado usa "
-                    "obtener_seleccion — nunca pidas un identificador al usuario."
-                )
-            else:
-                parts.append(
-                    "Tienes herramientas disponibles. Las herramientas de búsqueda "
-                    "(buscar_elementos, buscar_por_nombre, elementos_de_planta, "
-                    "filtrar_por_propiedad) seleccionan automáticamente los elementos "
-                    "encontrados en el árbol de la aplicación. Úsalas cuando el usuario "
-                    "pida buscar, mostrar o seleccionar elementos. Responde desde el "
-                    "contexto cuando ya tengas la información."
-                )
         return "\n\n".join(parts)

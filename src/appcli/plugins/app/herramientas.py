@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from appcli import config as _config
+
 
 class EstadoApp:
     name = "estado_app"
@@ -66,35 +68,39 @@ class CargarIfc:
         self.last_ids: list[str] = []
 
     def execute(self, args: dict) -> str:
-        nombre = args.get("nombre", "")
+        nombre = args.get("nombre", "").strip()
         if not nombre:
             return "Indica el nombre del archivo a cargar."
 
-        cwd = Path(os.getcwd()).resolve()
+        # Normalizar: extraer solo el nombre de archivo (ignorar ruta indicada por el modelo)
+        nombre_archivo = Path(nombre).name.lower()
+        if not nombre_archivo.endswith(".ifc"):
+            nombre_archivo += ".ifc"
 
-        nombre_lower = nombre.lower()
-        if not nombre_lower.endswith(".ifc"):
-            nombre_lower += ".ifc"
+        # Buscar en el directorio de trabajo y en el de proyecto recursivamente
+        directorios = [Path(os.getcwd()).resolve()]
+        proj_dir = _config.load().get("proyecto_dir", "")
+        if proj_dir:
+            proj_path = Path(proj_dir)
+            if proj_path.exists() and proj_path not in directorios:
+                directorios.append(proj_path)
 
-        if os.sep in nombre or "/" in nombre or "\\" in nombre:
-            return "Solo se pueden cargar archivos del directorio de trabajo."
-
-        try:
-            candidatos = [
-                p for p in cwd.iterdir()
-                if p.is_file() and p.suffix.lower() == ".ifc"
-                and p.name.lower() == nombre_lower
-            ]
-        except PermissionError:
-            return "No se puede acceder al directorio de trabajo."
+        candidatos = []
+        for base in directorios:
+            try:
+                candidatos += [p for p in base.rglob("*.ifc") if p.name.lower() == nombre_archivo]
+            except PermissionError:
+                pass
 
         if not candidatos:
-            disponibles = [p.name for p in cwd.iterdir() if p.suffix.lower() == ".ifc"]
-            if disponibles:
-                lista = ", ".join(disponibles)
-                return f"No se encontró '{nombre}'. Archivos disponibles: {lista}"
-            return f"No se encontró '{nombre}' y no hay archivos .ifc en el directorio de trabajo."
+            return (
+                f"No se encontró ningún archivo llamado '{nombre}'. "
+                "Usa 'buscar_archivos_ifc' para ver los disponibles."
+            )
 
-        path = str(candidatos[0])
-        self._cargar(path)
+        if len(candidatos) > 1:
+            lista = "\n".join(f"- {p}" for p in candidatos[:5])
+            return f"Hay varios archivos con ese nombre:\n{lista}\nEspecifica la ruta completa."
+
+        self._cargar(str(candidatos[0]))
         return f"Cargando '{candidatos[0].name}'..."

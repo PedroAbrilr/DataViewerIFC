@@ -146,6 +146,107 @@ class OllamaClient:
         except Exception:
             return False
 
+    def stop(self) -> None:
+        """Termina el proceso ollama serve si fue iniciado por la app."""
+        if self._proceso and self._proceso.poll() is None:
+            self._proceso.terminate()
+            try:
+                self._proceso.wait(timeout=5)
+            except Exception:
+                self._proceso.kill()
+        self._proceso = None
+
+    def recrear_modelo(self, on_status=None) -> bool:
+        """Borra ifc-assistant si existe y lo recrea desde el Modelfile.
+
+        Devuelve True si el modelo quedó listo, False si hubo error.
+        """
+        def status(msg):
+            if on_status:
+                on_status(msg)
+
+        _prepare_models_dir()
+
+        if not self._ping():
+            status("Iniciando Ollama...")
+            try:
+                self._proceso = subprocess.Popen(
+                    [_ollama_bin(), "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except FileNotFoundError:
+                status("Error: Ollama no está instalado.")
+                return False
+            for _ in range(20):
+                time.sleep(0.5)
+                if self._ping():
+                    break
+            else:
+                status("Error: Ollama no responde.")
+                return False
+
+        # Borrar el modelo personalizado si existe
+        modelos = self.modelos_disponibles()
+        if any(_CUSTOM_MODEL in m for m in modelos):
+            status(f"Eliminando modelo anterior {_CUSTOM_MODEL}...")
+            try:
+                subprocess.run(
+                    [_ollama_bin(), "rm", _CUSTOM_MODEL],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                status(f"Aviso: no se pudo eliminar {_CUSTOM_MODEL}.")
+
+        # Descargar modelo base si no está disponible
+        base_model = _base_model()
+        modelos = self.modelos_disponibles()
+        if not any(base_model.split(":")[0] in m for m in modelos):
+            status(f"Descargando modelo base {base_model}... (puede tardar varios minutos)")
+            try:
+                subprocess.run(
+                    [_ollama_bin(), "pull", base_model],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                status(f"Error al descargar {base_model}.")
+                return False
+
+        # Crear modelo personalizado
+        status(f"Creando modelo {_CUSTOM_MODEL}...")
+        try:
+            modelfile_content = _MODELFILE.read_text(encoding="utf-8")
+            modelfile_content = modelfile_content.replace("{{BASE_MODEL}}", base_model)
+            if "{{MANUAL_USUARIO}}" in modelfile_content:
+                manual = _MANUAL_FILE.read_text(encoding="utf-8") if _MANUAL_FILE.exists() else ""
+                modelfile_content = modelfile_content.replace("{{MANUAL_USUARIO}}", manual)
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", suffix=".modelfile", delete=False
+            ) as tmp:
+                tmp.write(modelfile_content)
+                tmp_path = tmp.name
+
+            try:
+                subprocess.run(
+                    [_ollama_bin(), "create", _CUSTOM_MODEL, "-f", tmp_path],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+
+            status(f"Modelo {_CUSTOM_MODEL} creado correctamente.")
+            return True
+        except subprocess.CalledProcessError:
+            status(f"Error al crear {_CUSTOM_MODEL}.")
+            return False
+
     def modelos_disponibles(self) -> list[str]:
         try:
             return [m.model for m in ollama.list().models]

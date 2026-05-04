@@ -33,7 +33,7 @@ Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Fou
   - `OllamaBackend` — modelo local, ifc-assistant personalizado
   - `ClaudeBackend` — Anthropic API
   - `OpenAIBackend` — OpenAI API
-  - Configuración persistida en `~/.config/appcli/config.json`
+  - Configuración persistida en `~/.config/dataviewerifc/config.json`
 - **Ventana de configuración** (`ui/config_dialog.py`):
   - Selector de backend IA y modelo
   - Diálogo emergente de API key al elegir Claude u OpenAI (se guarda en config.json)
@@ -41,18 +41,18 @@ Aplicación de escritorio en Python para **explorar archivos IFC** (Industry Fou
   - Label de consola actualizado al cambiar de backend
 - **Herramientas de app** (`ai/app_tools.py`): `estado_app` y `cargar_ifc` permiten a la IA consultar el estado y abrir archivos IFC.
 - **Gestión de rutas de Ollama**:
-  - Binario portable en `src/appcli/ollama/ollama` (desarrollo) o `~/.local/share/appcli/ollama/ollama` (producción)
+  - Binario portable en `src/dataviewerifc/ollama/ollama` (desarrollo) o `~/.local/share/dataviewerifc/ollama/ollama` (producción)
   - Modelos en `ollama/models/` junto al binario (`OLLAMA_MODELS` configurado automáticamente)
-  - `dev_bootstrap.py` como punto de entrada en desarrollo (fija `APPCLI_OLLAMA_BIN`)
-- **Installer independiente** (`appcli-install`):
-  - Descarga Ollama según OS/arquitectura a `~/.local/share/appcli/ollama/`
+  - `dev_bootstrap.py` como punto de entrada en desarrollo (fija `DATAVIEWERIFC_OLLAMA_BIN`)
+- **Installer independiente** (`dataviewerifc-install`):
+  - Descarga Ollama según OS/arquitectura a `~/.local/share/dataviewerifc/ollama/`
   - Menú de selección de modelo base
   - Pull del modelo + creación de `ifc-assistant`
   - Guarda configuración y acceso directo de escritorio
 - Wheel `py3-none-any` (sin binario Ollama embebido).
 - Tests unitarios: 97 tests pasando (`ifc/query.py`, `ifc_tools.py`, backends, config, `app_tools.py` y `tool_runner.py`).
 - Manual de usuario actualizado.
-- Repositorio publicado en GitHub: https://github.com/PedroAbrilr/ifc_IA_CLI
+- Repositorio publicado en GitHub: https://github.com/PedroAbrilr/DataViewerIFC
 
 ## Arquitectura de módulos
 
@@ -65,7 +65,7 @@ AppCLI/
 │   ├── test_backends.py      # 15 tests de backends y config
 │   ├── test_app_tools.py     # 12 tests de ai/app_tools.py
 │   └── test_tool_runner.py   # 31 tests de ai/tool_runner.py
-└── src/appcli/
+└── src/dataviewerifc/
     ├── ui/
     │   ├── theme.py          # Paleta, fuentes y estilos ttk
     │   ├── app.py            # Ventana principal; toolbar con botón Configuración
@@ -86,37 +86,37 @@ AppCLI/
     │       ├── ollama_backend.py # Ollama local
     │       ├── claude_backend.py # Anthropic API
     │       └── openai_backend.py # OpenAI API
-    ├── config.py             # ~/.config/appcli/config.json + inject_env()
-    ├── installer.py          # appcli-install: descarga Ollama, elige modelo
+    ├── config.py             # ~/.config/dataviewerifc/config.json + inject_env()
+    ├── installer.py          # dataviewerifc-install: descarga Ollama, elige modelo
     ├── main.py
     ├── ollama/               # Binario portable (gitignored) + models/ (gitignored)
     └── data/
         ├── Modelfile         # FROM {{BASE_MODEL}} — placeholder dinámico
         ├── manual_usuario.md
-        └── appcli.desktop
+        └── dataviewerifc.desktop
 ```
 
 ## Rutas del sistema
 
 | Ruta | Contenido | Entorno |
 |---|---|---|
-| `src/appcli/ollama/ollama` | Binario portable | Desarrollo |
-| `src/appcli/ollama/models/` | Modelos Ollama | Desarrollo |
-| `~/.local/share/appcli/ollama/ollama` | Binario portable | Producción |
-| `~/.local/share/appcli/ollama/models/` | Modelos Ollama | Producción |
-| `~/.config/appcli/config.json` | Configuración y API keys | Ambos |
-| `~/.local/share/applications/appcli.desktop` | Acceso directo | Producción Linux |
+| `src/dataviewerifc/ollama/ollama` | Binario portable | Desarrollo |
+| `src/dataviewerifc/ollama/models/` | Modelos Ollama | Desarrollo |
+| `~/.local/share/dataviewerifc/ollama/ollama` | Binario portable | Producción |
+| `~/.local/share/dataviewerifc/ollama/models/` | Modelos Ollama | Producción |
+| `~/.config/dataviewerifc/config.json` | Configuración y API keys | Ambos |
+| `~/.local/share/applications/dataviewerifc.desktop` | Acceso directo | Producción Linux |
 
 ## Variables de entorno
 
 | Variable | Propósito |
 |---|---|
-| `APPCLI_OLLAMA_BIN` | Ruta al binario de Ollama (fijada por `dev_bootstrap.py`) |
+| `DATAVIEWERIFC_OLLAMA_BIN` | Ruta al binario de Ollama (fijada por `dev_bootstrap.py`) |
 | `OLLAMA_MODELS` | Directorio de modelos (fijado automáticamente por `_prepare_models_dir()`) |
 | `ANTHROPIC_API_KEY` | Inyectada desde config.json al arrancar |
 | `OPENAI_API_KEY` | Inyectada desde config.json al arrancar |
 
-## Configuración de usuario (~/.config/appcli/config.json)
+## Configuración de usuario (~/.config/dataviewerifc/config.json)
 
 | Clave | Descripción |
 |---|---|
@@ -136,7 +136,7 @@ Trabajo completado en esta sesión:
 2. **`AppTools`** — nuevo módulo con herramientas `estado_app` y `cargar_ifc` que permiten a la IA consultar el estado de la aplicación y abrir archivos IFC desde la consola.
 3. **Sincronización árbol ↔ IA** — cuando una herramienta devuelve una lista de elementos, el árbol se actualiza automáticamente: `IFCTools._last_ids` → `ToolRunner.on_seleccionar` → `TreePanel.select_by_ids()`. Verificado que no produce bucle (el cambio de selección actualiza contexto pero no relanza la IA).
 4. **97 tests unitarios** pasando — `ifc/query.py`, `ifc_tools.py`, backends, config, `app_tools.py` y `tool_runner.py`.
-5. **Repositorio publicado en GitHub**: https://github.com/PedroAbrilr/ifc_IA_CLI
+5. **Repositorio publicado en GitHub**: https://github.com/PedroAbrilr/DataViewerIFC
 6. **Documentación** actualizada — manual, arquitectura, contexto y guía de desarrollo.
 
 ## Posibles próximos pasos

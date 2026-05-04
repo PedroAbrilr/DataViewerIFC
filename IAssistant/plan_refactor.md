@@ -18,21 +18,21 @@ Plan autocontenido de limpieza, deduplicación y mejoras de eficiencia del códi
 ## Estado inicial (referencia)
 
 - Rama: `main`, limpia.
-- Repositorio: https://github.com/PedroAbrilr/ifc_IA_CLI
+- Repositorio: https://github.com/PedroAbrilr/DataViewerIFC
 - Tests: 97 (ver `tests/`).
 - Archivos principales involucrados:
-  - `src/appcli/ifc/loader.py` (136 líneas)
-  - `src/appcli/ifc/query.py` (225 líneas)
-  - `src/appcli/ai/ollama_client.py` (195 líneas)
-  - `src/appcli/ai/tool_runner.py` (319 líneas)
-  - `src/appcli/ai/backends/ollama_backend.py` (56 líneas)
-  - `src/appcli/ai/backends/openai_backend.py` (102 líneas)
-  - `src/appcli/ai/backends/claude_backend.py` (147 líneas)
-  - `src/appcli/ui/app.py` (319 líneas)
-  - `src/appcli/ui/ai_console.py` (230 líneas)
-  - `src/appcli/ui/config_dialog.py` (320 líneas)
-  - `src/appcli/ui/tree_panel.py` (72 líneas)
-  - `src/appcli/config.py` (42 líneas)
+  - `src/dataviewerifc/ifc/loader.py` (136 líneas)
+  - `src/dataviewerifc/ifc/query.py` (225 líneas)
+  - `src/dataviewerifc/ai/ollama_client.py` (195 líneas)
+  - `src/dataviewerifc/ai/tool_runner.py` (319 líneas)
+  - `src/dataviewerifc/ai/backends/ollama_backend.py` (56 líneas)
+  - `src/dataviewerifc/ai/backends/openai_backend.py` (102 líneas)
+  - `src/dataviewerifc/ai/backends/claude_backend.py` (147 líneas)
+  - `src/dataviewerifc/ui/app.py` (319 líneas)
+  - `src/dataviewerifc/ui/ai_console.py` (230 líneas)
+  - `src/dataviewerifc/ui/config_dialog.py` (320 líneas)
+  - `src/dataviewerifc/ui/tree_panel.py` (72 líneas)
+  - `src/dataviewerifc/config.py` (42 líneas)
 
 ---
 
@@ -76,13 +76,13 @@ Plan autocontenido de limpieza, deduplicación y mejoras de eficiencia del códi
 
 ## Tarea 2 — Borrar código muerto en `OllamaClient`
 
-**Problema.** `OllamaClient.query()` y `OllamaClient.stream()` (aprox. líneas 170–188 de `src/appcli/ai/ollama_client.py`) no se invocan desde ningún lugar del código fuente; todo el chat pasa ahora por la jerarquía de `AIBackend`.
+**Problema.** `OllamaClient.query()` y `OllamaClient.stream()` (aprox. líneas 170–188 de `src/dataviewerifc/ai/ollama_client.py`) no se invocan desde ningún lugar del código fuente; todo el chat pasa ahora por la jerarquía de `AIBackend`.
 
 **Verificación previa (antes de borrar):**
 ```bash
 # Ambas búsquedas deben devolver 0 resultados (excepto la propia definición).
 ```
-Usar la herramienta Grep con patrones `\.query\(` y `\.stream\(` sobre `src/appcli/`. El único match permitido es `client.messages.stream(` dentro de `claude_backend.py`.
+Usar la herramienta Grep con patrones `\.query\(` y `\.stream\(` sobre `src/dataviewerifc/`. El único match permitido es `client.messages.stream(` dentro de `claude_backend.py`.
 
 **Solución.**
 
@@ -96,7 +96,7 @@ Usar la herramienta Grep con patrones `\.query\(` y `\.stream\(` sobre `src/appc
 **Verificar:**
 ```bash
 .venv/bin/pytest
-python -c "from appcli.ai.ollama_client import OllamaClient; OllamaClient()"
+python -c "from dataviewerifc.ai.ollama_client import OllamaClient; OllamaClient()"
 ```
 
 ---
@@ -140,7 +140,7 @@ Si por cualquier razón la Tarea 1 se salta, hacer este extract aquí como tarea
 - `ui/app.py:241` → `tool_runner._ifc_tools`
 - `ui/config_dialog.py:298` → `tool_runner._backend`
 
-**Solución.** En `src/appcli/ai/tool_runner.py`:
+**Solución.** En `src/dataviewerifc/ai/tool_runner.py`:
 
 1. Renombrar el atributo `self._backend` a `self.backend` (público).
 2. Renombrar `self._ifc_tools` a `self.ifc_tools` (público).
@@ -167,7 +167,7 @@ Si por cualquier razón la Tarea 1 se salta, hacer este extract aquí como tarea
 - `ollama_backend.py:13, 35` — código inline duplicado.
 - `openai_backend.py:14–22` — en `_prepare_messages`.
 
-**Solución.** En `src/appcli/ai/backends/base.py` añadir una función libre:
+**Solución.** En `src/dataviewerifc/ai/backends/base.py` añadir una función libre:
 
 ```python
 def prepend_system(system: str, messages: list) -> list:
@@ -259,7 +259,7 @@ En ambos casos, retirar la constante `_BUFFER_TOKENS` si no queda referenciada.
 - `ui/ai_console.py` (Enviar, Detener)
 - `ui/config_dialog.py` (Aceptar, Cancelar × 2 diálogos)
 
-**Solución.** Añadir en `src/appcli/ui/theme.py`:
+**Solución.** Añadir en `src/dataviewerifc/ui/theme.py`:
 
 ```python
 def make_button(parent, text, command, variant="accent", **kwargs):

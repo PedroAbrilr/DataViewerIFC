@@ -35,7 +35,7 @@ appcli-env\Scripts\activate
 Descarga el wheel desde el repositorio del proyecto e instálalo con pip:
 
 ```bash
-pip install https://github.com/PedroAbrilr/ifc_IA_CLI/releases/latest/download/appcli-1.2.0-py3-none-any.whl
+pip install https://github.com/PedroAbrilr/DataViewerIFC/releases/latest/download/dataviewerifc-1.2.0-py3-none-any.whl
 ```
 
 El paquete incluye todas las dependencias necesarias (ifcopenshell, ollama, anthropic, openai, ttkthemes).

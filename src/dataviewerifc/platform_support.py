@@ -1,4 +1,4 @@
-"""Abstracción de diferencias de sistema operativo relevantes para AppCLI."""
+"""Abstracción de diferencias de sistema operativo relevantes para DataViewerIFC."""
 
 import os
 import platform
@@ -87,11 +87,11 @@ class _UnixPlatform(Platform):
 
     @property
     def config_dir(self) -> Path:
-        return Path.home() / ".config" / "appcli"
+        return Path.home() / ".config" / "dataviewerifc"
 
     @property
     def data_dir(self) -> Path:
-        return Path.home() / ".local" / "share" / "appcli"
+        return Path.home() / ".local" / "share" / "dataviewerifc"
 
     @property
     def ollama_bin_name(self) -> str:
@@ -118,7 +118,7 @@ class LinuxPlatform(_UnixPlatform):
 
     @property
     def shortcut_path(self) -> Path | None:
-        return Path.home() / ".local" / "share" / "applications" / "appcli.desktop"
+        return Path.home() / ".local" / "share" / "applications" / "dataviewerifc.desktop"
 
     def install_shortcut(self, desktop_src: Path) -> None:
         if not desktop_src.exists():
@@ -149,13 +149,13 @@ class WindowsPlatform(Platform):
     def config_dir(self) -> Path:
         appdata = os.environ.get("APPDATA")
         base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
-        return base / "appcli"
+        return base / "dataviewerifc"
 
     @property
     def data_dir(self) -> Path:
         localappdata = os.environ.get("LOCALAPPDATA")
         base = Path(localappdata) if localappdata else Path.home() / "AppData" / "Local"
-        return base / "appcli"
+        return base / "dataviewerifc"
 
     @property
     def ollama_bin_name(self) -> str:
@@ -173,13 +173,13 @@ class WindowsPlatform(Platform):
     def ollama_install_hint(self) -> str:
         return (
             "En Windows instala Ollama manualmente desde https://ollama.com/download\n"
-            "Una vez instalado, vuelve a ejecutar appcli-install."
+            "Una vez instalado, vuelve a ejecutar dataviewerifc-install."
         )
 
     @property
     def config_dir_display(self) -> str:
         appdata = os.environ.get("APPDATA", "%APPDATA%")
-        return str(Path(appdata) / "appcli")
+        return str(Path(appdata) / "dataviewerifc")
 
 
 _instance: Platform | None = None

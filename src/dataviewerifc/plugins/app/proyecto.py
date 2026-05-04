@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from appcli import config as _config
+from dataviewerifc import config as _config
 
 
 class ObtenerDirectorioProyecto:

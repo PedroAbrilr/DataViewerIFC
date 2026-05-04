@@ -23,11 +23,11 @@ python -m build --wheel
 
 ## Lanzar la aplicación
 
-Cuando el usuario pida mostrar, probar o lanzar la aplicación, usar siempre **`dev_bootstrap.py`** (`python dev_bootstrap.py`). Este archivo configura `APPCLI_OLLAMA_BIN` apuntando al binario portable del repositorio y no se incluye en el wheel. El wheel solo se genera cuando se pide explícitamente.
+Cuando el usuario pida mostrar, probar o lanzar la aplicación, usar siempre **`dev_bootstrap.py`** (`python dev_bootstrap.py`). Este archivo configura `DATAVIEWERIFC_OLLAMA_BIN` apuntando al binario portable del repositorio y no se incluye en el wheel. El wheel solo se genera cuando se pide explícitamente.
 
 ## Arquitectura
 
-Tres capas: `appcli.ui` (Tkinter) → `appcli.ifc` (ifcopenshell) y `appcli.ai` (ollama). La UI no importa directamente `ifcopenshell` ni `ollama`; todo acceso pasa por `IFCLoader` y `OllamaClient`.
+Tres capas: `dataviewerifc.ui` (Tkinter) → `dataviewerifc.ifc` (ifcopenshell) y `dataviewerifc.ai` (ollama). La UI no importa directamente `ifcopenshell` ni `ollama`; todo acceso pasa por `IFCLoader` y `OllamaClient`.
 
 `App` es la única clase que coordina los tres paneles y las dos capas de datos. Los paneles no se conocen entre sí.
 
@@ -45,7 +45,7 @@ Las operaciones bloqueantes (carga IFC, consultas Ollama) se ejecutan en hilos s
 
 ## Distribución
 
-El wheel se genera con `python -m build --wheel` y queda en `dist/`. Incluye el `Modelfile` y el manual de usuario (`appcli/data/`). El binario de Ollama **no se distribuye** en el wheel; el instalador (`appcli-install`) lo descarga a `~/.local/share/appcli/bin/`. Los modelos de Ollama (`models/`) tampoco se incluyen.
+El wheel se genera con `python -m build --wheel` y queda en `dist/`. Incluye el `Modelfile` y el manual de usuario (`dataviewerifc/data/`). El binario de Ollama **no se distribuye** en el wheel; el instalador (`dataviewerifc-install`) lo descarga a `~/.local/share/dataviewerifc/bin/`. Los modelos de Ollama (`models/`) tampoco se incluyen.
 
 ## Control de versiones
 

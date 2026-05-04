@@ -3,7 +3,7 @@
 import json
 import os
 
-from appcli.platform_support import get_platform
+from dataviewerifc.platform_support import get_platform
 
 _CONFIG_DIR  = get_platform().config_dir
 _CONFIG_FILE = _CONFIG_DIR / "config.json"

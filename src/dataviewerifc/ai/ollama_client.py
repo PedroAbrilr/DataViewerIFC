@@ -8,8 +8,8 @@ from pathlib import Path
 
 import ollama
 
-from appcli import config as _config
-from appcli.platform_support import get_platform
+from dataviewerifc import config as _config
+from dataviewerifc.platform_support import get_platform
 
 _PKG_DIR      = Path(__file__).parent.parent
 _CUSTOM_MODEL = "ifc-assistant"
@@ -18,8 +18,8 @@ _MANUAL_FILE  = _PKG_DIR / "data" / "manual_usuario.md"
 
 
 def _ollama_bin() -> str:
-    """Devuelve la ruta al binario de Ollama: APPCLI_OLLAMA_BIN → usuario → sistema."""
-    dev_bin = os.environ.get("APPCLI_OLLAMA_BIN")
+    """Devuelve la ruta al binario de Ollama: DATAVIEWERIFC_OLLAMA_BIN → usuario → sistema."""
+    dev_bin = os.environ.get("DATAVIEWERIFC_OLLAMA_BIN")
     if dev_bin and Path(dev_bin).exists() and os.access(dev_bin, os.X_OK):
         return dev_bin
     plat = get_platform()

@@ -3,7 +3,7 @@
 import threading
 import tkinter as tk
 
-from appcli.ui import theme
+from dataviewerifc.ui import theme
 
 _TOOL_LABELS = {
     "buscar_elementos":               "Buscando elementos...",

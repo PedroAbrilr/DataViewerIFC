@@ -3,7 +3,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from appcli.ui import theme
+from dataviewerifc.ui import theme
 
 
 class TreePanel:

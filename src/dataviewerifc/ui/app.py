@@ -8,17 +8,17 @@ from tkinter import ttk, filedialog, messagebox
 
 from ttkthemes import ThemedTk
 
-from appcli import config as _config
-from appcli.ui import theme
-from appcli.ui.tree_panel import TreePanel
-from appcli.ui.props_panel import PropsPanel
-from appcli.ui.ai_console import AIConsole
-from appcli.ifc.loader import IFCLoader
-from appcli.ai.ollama_client import OllamaClient
-from appcli.ai.tool_runner import ToolRunner
-from appcli.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend, GeminiBackend
-from appcli.ui.config_dialog import ConfigDialog
-from appcli.plugins.registro import construir_registries
+from dataviewerifc import config as _config
+from dataviewerifc.ui import theme
+from dataviewerifc.ui.tree_panel import TreePanel
+from dataviewerifc.ui.props_panel import PropsPanel
+from dataviewerifc.ui.ai_console import AIConsole
+from dataviewerifc.ifc.loader import IFCLoader
+from dataviewerifc.ai.ollama_client import OllamaClient
+from dataviewerifc.ai.tool_runner import ToolRunner
+from dataviewerifc.ai.backends import OllamaBackend, ClaudeBackend, OpenAIBackend, GeminiBackend
+from dataviewerifc.ui.config_dialog import ConfigDialog
+from dataviewerifc.plugins.registro import construir_registries
 
 MARGIN = 10
 
@@ -26,7 +26,7 @@ MARGIN = 10
 class App:
     def __init__(self):
         self.root = ThemedTk(theme="equilux")
-        self.root.title("AppCLI — IFC Viewer")
+        self.root.title("DataViewerIFC")
         self.root.geometry("1280x860")
         self.loader = IFCLoader()
         self.ollama = OllamaClient()
@@ -120,11 +120,11 @@ class App:
         self.status_elemento_activo.pack(side=tk.LEFT)
 
         try:
-            _ver = f"v{_pkg_version('appcli')}"
+            _ver = f"v{_pkg_version('dataviewerifc')}"
         except PackageNotFoundError:
             _ver = ""
         self.status_modelo = tk.Label(
-            bar, text=f"AppCLI  {_ver}",
+            bar, text=f"DataViewerIFC  {_ver}",
             bg=theme.BG_DARK, fg=theme.FG_SECONDARY,
             font=theme.FONT_SMALL, anchor="e",
         )
@@ -227,7 +227,7 @@ class App:
         self.tree_panel.load(nodos)
         nombre = Path(path).name
         self._archivo_activo = nombre
-        self.root.title(f"AppCLI — {nombre}")
+        self.root.title(f"DataViewerIFC — {nombre}")
         self.lbl_archivo.config(text=nombre, fg=theme.FG_PRIMARY)
         self.status_elementos.config(text=f"{total} elementos cargados")
         self.ai_console.set_archivo(nombre, total)

@@ -20,5 +20,5 @@ build/
 
 # Binario portable de Ollama y sus modelos
 /bin/
-src/appcli/ollama/ollama
-src/appcli/ollama/models/
+src/dataviewerifc/ollama/ollama
+src/dataviewerifc/ollama/models/

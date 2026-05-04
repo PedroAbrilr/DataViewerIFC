@@ -1,8 +1,8 @@
-# AppCLI — Manual de usuario
+# DataViewerIFC — Manual de usuario
 
-## ¿Qué es AppCLI?
+## ¿Qué es DataViewerIFC?
 
-AppCLI es una aplicación de escritorio para explorar archivos IFC, el formato estándar de los modelos de edificios en BIM. Con AppCLI puedes navegar por todos los elementos de un edificio —muros, forjados, puertas, ventanas, pilares…—, consultar sus propiedades y hacer preguntas sobre el modelo en lenguaje natural gracias a un asistente de inteligencia artificial.
+DataViewerIFC es una aplicación de escritorio para explorar archivos IFC, el formato estándar de los modelos de edificios en BIM. Con DataViewerIFC puedes navegar por todos los elementos de un edificio —muros, forjados, puertas, ventanas, pilares…—, consultar sus propiedades y hacer preguntas sobre el modelo en lenguaje natural gracias a un asistente de inteligencia artificial.
 
 ---
 
@@ -21,29 +21,29 @@ AppCLI es una aplicación de escritorio para explorar archivos IFC, el formato e
 Abre una terminal y ejecuta:
 
 ```bash
-python -m venv appcli-env
+python -m venv dataviewerifc-env
 ```
 
 Activa el entorno:
 
 ```bash
 # En Linux o macOS
-source appcli-env/bin/activate
+source dataviewerifc-env/bin/activate
 
 # En Windows
-appcli-env\Scripts\activate
+dataviewerifc-env\Scripts\activate
 ```
 
-### 2. Instalar AppCLI
+### 2. Instalar DataViewerIFC
 
 ```bash
-pip install https://github.com/PedroAbrilr/ifc_IA_CLI/releases/latest/download/appcli-1.2.0-py3-none-any.whl
+pip install https://github.com/PedroAbrilr/ifc_IA_CLI/releases/latest/download/dataviewerifc-1.2.0-py3-none-any.whl
 ```
 
 ### 3. Arrancar la aplicación
 
 ```bash
-appcli
+dataviewerifc
 ```
 
 La primera vez que uses el asistente de IA local (Ollama), la aplicación descargará automáticamente el modelo de lenguaje. Esto puede tardar unos minutos según la velocidad de tu conexión. Las siguientes veces arrancará al instante.
@@ -194,7 +194,7 @@ Calcula el área total de muros exteriores
 
 ## El asistente de IA — opciones disponibles
 
-AppCLI puede conectarse a tres asistentes distintos. Puedes cambiar entre ellos en cualquier momento desde **⚙ Configuración**.
+DataViewerIFC puede conectarse a cuatro asistentes distintos. Puedes cambiar entre ellos en cualquier momento desde **⚙ Configuración**.
 
 ### Ollama — asistente local
 
@@ -210,15 +210,21 @@ Asistente en la nube de alta calidad, con excelente comprensión del lenguaje t�
 
 Asistente en la nube ampliamente conocido. Requiere una clave de API de OpenAI.
 
+### Gemini (Google)
+
+Asistente en la nube de Google con buena velocidad de respuesta. Requiere una clave de API de Google AI Studio.
+
 ---
 
 ## Configuración
 
 Pulsa **⚙ Configuración** en la barra superior para abrir la ventana de ajustes.
 
-**Sección «Asistente IA»** — Elige el asistente y el modelo que quieres usar. Si seleccionas Claude o ChatGPT por primera vez, la aplicación te pedirá tu clave de API al pulsar **Aplicar**. La clave se guarda de forma local en tu ordenador y no se comparte con nadie.
+**Sección «Asistente IA»** — Elige el asistente y el modelo que quieres usar. Si seleccionas Claude, ChatGPT o Gemini por primera vez, la aplicación te pedirá tu clave de API al pulsar **Aplicar**. La clave se guarda de forma local en tu ordenador y no se comparte con nadie.
 
-**Sección «Directorios del sistema»** — Muestra las carpetas donde AppCLI guarda su configuración, el binario de Ollama y los modelos descargados.
+Cuando el backend seleccionado es Ollama, aparece el botón **Recrear modelo ifc-assistant**. Úsalo si el asistente no responde correctamente o si has cambiado el modelo base: descarga el modelo si es necesario y reconstruye el asistente personalizado con las instrucciones de BIM/IFC.
+
+**Sección «Directorios del sistema»** — Muestra las carpetas donde DataViewerIFC guarda su configuración, el binario de Ollama y los modelos descargados.
 
 Al pulsar **Aplicar**, los cambios tienen efecto inmediatamente sin necesidad de reiniciar.
 
@@ -230,8 +236,8 @@ Al pulsar **Aplicar**, los cambios tienen efecto inmediatamente sin necesidad de
 |---|---|---|
 | El árbol aparece vacío | El archivo no tiene jerarquía espacial definida | Comprueba el archivo con otro visor IFC |
 | La tabla de propiedades está vacía | El elemento no tiene propiedades asignadas | Es normal en algunos elementos genéricos |
-| El asistente local no responde | Ollama no ha arrancado o está descargando el modelo | Espera unos segundos y vuelve a intentarlo |
-| Error de clave API | La clave no está guardada o es incorrecta | Abre **⚙ Configuración** e introduce la clave de nuevo |
+| El asistente local no responde | Ollama no ha arrancado o el modelo no está creado | Espera unos segundos; si persiste, usa **Recrear modelo ifc-assistant** en ⚙ Configuración |
+| Error de clave API | La clave no está guardada o es incorrecta | Abre **⚙ Configuración** e introduce la clave de nuevo (Anthropic, OpenAI o Google según el asistente elegido) |
 | El asistente no encuentra un archivo IFC | El archivo no está en la carpeta de trabajo ni en la carpeta de proyecto | Configura la carpeta de proyecto o abre el archivo manualmente con **Abrir IFC** |
 | El archivo no se abre | El archivo está dañado o es de una versión no compatible | Prueba con otro archivo IFC |
 | El asistente tarda en responder | El modelo local se está cargando | Las primeras respuestas son más lentas; las siguientes van mucho más rápido |
@@ -285,7 +291,7 @@ El asistente dispone de las siguientes herramientas para consultar el modelo IFC
 
 ### Ollama (local)
 
-El modelo base por defecto es `llama3.2:1b`. Se puede cambiar en la configuración. Cualquier modelo disponible en [ollama.com/library](https://ollama.com/library) es compatible. El asistente personalizado `ifc-assistant` se construye sobre el modelo base configurado con instrucciones especializadas en BIM/IFC.
+El modelo base por defecto es `qwen2.5:1.5b`. Se puede cambiar en la configuración. Cualquier modelo disponible en [ollama.com/library](https://ollama.com/library) es compatible. El asistente personalizado `ifc-assistant` se construye sobre el modelo base configurado con instrucciones especializadas en BIM/IFC.
 
 ### Claude (Anthropic)
 
@@ -302,14 +308,24 @@ El modelo base por defecto es `llama3.2:1b`. Se puede cambiar en la configuraci�
 | `gpt-4o-mini` | Rápido y económico, recomendado |
 | `gpt-4o` | Mayor calidad |
 
+### Gemini (Google)
+
+Requiere `GOOGLE_API_KEY`. Clave obtenible en [aistudio.google.com](https://aistudio.google.com).
+
+| Modelo | Características |
+|---|---|
+| `gemini-2.0-flash` | Rápido, recomendado |
+| `gemini-1.5-flash` | Alternativa ligera |
+| `gemini-1.5-pro` | Mayor capacidad de contexto |
+
 ---
 
 ## Rutas de instalación por sistema operativo
 
 | Elemento | Linux | macOS | Windows |
 |---|---|---|---|
-| Configuración | `~/.config/appcli/` | `~/.config/appcli/` | `%APPDATA%\appcli\` |
-| Binario Ollama | `~/.local/share/appcli/ollama/` | `~/.local/share/appcli/ollama/` | `%LOCALAPPDATA%\appcli\ollama\` |
+| Configuración | `~/.config/dataviewerifc/` | `~/.config/dataviewerifc/` | `%APPDATA%\dataviewerifc\` |
+| Binario Ollama | `~/.local/share/dataviewerifc/ollama/` | `~/.local/share/dataviewerifc/ollama/` | `%LOCALAPPDATA%\dataviewerifc\ollama\` |
 | Modelos Ollama | directorio `models/` junto al binario | directorio `models/` junto al binario | directorio `models/` junto al binario |
 | Acceso directo | `~/.local/share/applications/` | — | — |
 

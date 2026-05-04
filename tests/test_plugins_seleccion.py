@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from appcli.plugins.ifc.propiedades import FiltrarPorPropiedad
-from appcli.plugins.ifc.seleccion import ObtenerSeleccion
+from dataviewerifc.plugins.ifc.propiedades import FiltrarPorPropiedad
+from dataviewerifc.plugins.ifc.seleccion import ObtenerSeleccion
 
 
 # ------------------------------------------------------------------
@@ -43,7 +43,7 @@ def test_filtrar_sin_modelo():
 
 def test_filtrar_modelo_con_resultados():
     t = FiltrarPorPropiedad(_loader())
-    with patch("appcli.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
+    with patch("dataviewerifc.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
         resultado = t.execute({"propiedad": "IsExternal", "valor": "true"})
     assert "1 elemento(s)" in resultado
     assert t.last_ids == ["abc123"]
@@ -51,7 +51,7 @@ def test_filtrar_modelo_con_resultados():
 
 def test_filtrar_modelo_sin_resultados():
     t = FiltrarPorPropiedad(_loader())
-    with patch("appcli.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[]):
+    with patch("dataviewerifc.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[]):
         resultado = t.execute({"propiedad": "X", "valor": "Y"})
     assert "No se encontraron" in resultado
     assert t.last_ids == []
@@ -59,7 +59,7 @@ def test_filtrar_modelo_sin_resultados():
 
 def test_filtrar_modelo_con_tipo():
     t = FiltrarPorPropiedad(_loader())
-    with patch("appcli.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
+    with patch("dataviewerifc.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
         resultado = t.execute({"propiedad": "IsExternal", "valor": "true", "tipo": "IfcWall"})
     assert "1 elemento(s)" in resultado
 
@@ -88,7 +88,7 @@ def test_filtrar_seleccion_sin_elementos():
 def test_filtrar_seleccion_con_resultados():
     elem = _make_elem()
     t = FiltrarPorPropiedad(_loader(), get_context=lambda: ([elem], []))
-    with patch("appcli.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
+    with patch("dataviewerifc.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
         resultado = t.execute({"propiedad": "IsExternal", "valor": "true", "fuente": "seleccion"})
     assert "selección" in resultado
     assert t.last_ids == ["abc123"]
@@ -96,10 +96,10 @@ def test_filtrar_seleccion_con_resultados():
 
 def test_filtrar_last_ids_se_resetea_entre_llamadas():
     t = FiltrarPorPropiedad(_loader())
-    with patch("appcli.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
+    with patch("dataviewerifc.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[_ELEM_DICT]):
         t.execute({"propiedad": "X", "valor": "Y"})
     assert t.last_ids == ["abc123"]
-    with patch("appcli.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[]):
+    with patch("dataviewerifc.plugins.ifc.propiedades._q.filtrar_por_propiedad", return_value=[]):
         t.execute({"propiedad": "X", "valor": "Y"})
     assert t.last_ids == []
 

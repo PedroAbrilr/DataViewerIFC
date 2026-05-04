@@ -1,7 +1,7 @@
 """Herramientas IFC de búsqueda por tipo y nombre."""
 
-from appcli.ifc import query as _q
-from appcli.plugins.ifc._utils import _extract_ids, _fmt_lista
+from dataviewerifc.ifc import query as _q
+from dataviewerifc.plugins.ifc._utils import _extract_ids, _fmt_lista
 
 
 class BuscarElementos:

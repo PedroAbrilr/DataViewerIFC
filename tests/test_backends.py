@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from appcli import config
-from appcli.ai.backends import ClaudeBackend, OllamaBackend, OpenAIBackend
+from dataviewerifc import config
+from dataviewerifc.ai.backends import ClaudeBackend, OllamaBackend, OpenAIBackend
 
 
 # ------------------------------------------------------------------

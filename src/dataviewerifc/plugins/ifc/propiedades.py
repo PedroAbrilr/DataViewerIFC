@@ -1,7 +1,7 @@
 """Herramientas IFC de acceso a propiedades de elementos."""
 
-from appcli.ifc import query as _q
-from appcli.plugins.ifc._utils import _extract_ids, _fmt_lista, _fmt_propiedades
+from dataviewerifc.ifc import query as _q
+from dataviewerifc.plugins.ifc._utils import _extract_ids, _fmt_lista, _fmt_propiedades
 
 
 class ObtenerPropiedades:

@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-import appcli.platform_support as ps
+import dataviewerifc.platform_support as ps
 
 
 # ---------------------------------------------------------------------------
@@ -34,10 +34,10 @@ class TestLinuxPlatform:
         return ps.LinuxPlatform()
 
     def test_config_dir(self, plat):
-        assert plat.config_dir == Path.home() / ".config" / "appcli"
+        assert plat.config_dir == Path.home() / ".config" / "dataviewerifc"
 
     def test_data_dir(self, plat):
-        assert plat.data_dir == Path.home() / ".local" / "share" / "appcli"
+        assert plat.data_dir == Path.home() / ".local" / "share" / "dataviewerifc"
 
     def test_ollama_bin_name(self, plat):
         assert plat.ollama_bin_name == "ollama"
@@ -60,7 +60,7 @@ class TestLinuxPlatform:
             assert plat.ollama_download_url() is None
 
     def test_shortcut_path(self, plat):
-        expected = Path.home() / ".local" / "share" / "applications" / "appcli.desktop"
+        expected = Path.home() / ".local" / "share" / "applications" / "dataviewerifc.desktop"
         assert plat.shortcut_path == expected
 
     def test_is_executable_missing(self, plat, tmp_path):
@@ -91,7 +91,7 @@ class TestMacOSPlatform:
         return ps.MacOSPlatform()
 
     def test_config_dir(self, plat):
-        assert plat.config_dir == Path.home() / ".config" / "appcli"
+        assert plat.config_dir == Path.home() / ".config" / "dataviewerifc"
 
     def test_ollama_download_url(self, plat):
         url = plat.ollama_download_url()
@@ -112,11 +112,11 @@ class TestWindowsPlatform:
 
     def test_config_dir_from_env(self, plat, monkeypatch):
         monkeypatch.setenv("APPDATA", "C:\\Users\\Test\\AppData\\Roaming")
-        assert "appcli" in str(plat.config_dir)
+        assert "dataviewerifc" in str(plat.config_dir)
 
     def test_config_dir_fallback(self, plat, monkeypatch):
         monkeypatch.delenv("APPDATA", raising=False)
-        assert plat.config_dir == Path.home() / "AppData" / "Roaming" / "appcli"
+        assert plat.config_dir == Path.home() / "AppData" / "Roaming" / "dataviewerifc"
 
     def test_ollama_bin_name(self, plat):
         assert plat.ollama_bin_name == "ollama.exe"
@@ -144,7 +144,7 @@ class TestWindowsPlatform:
 
     def test_config_dir_display(self, plat, monkeypatch):
         monkeypatch.setenv("APPDATA", "C:\\Users\\Test\\AppData\\Roaming")
-        assert "appcli" in plat.config_dir_display
+        assert "dataviewerifc" in plat.config_dir_display
 
 
 # ---------------------------------------------------------------------------

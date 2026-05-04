@@ -1,7 +1,7 @@
 """Tests unitarios para plugins/base.py (protocolo Tool)."""
 
 import pytest
-from appcli.plugins.base import Tool
+from dataviewerifc.plugins.base import Tool
 
 
 # ------------------------------------------------------------------

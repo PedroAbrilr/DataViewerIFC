@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from appcli.plugins.base import Tool
+from dataviewerifc.plugins.base import Tool
 
 
 class ToolRegistry:

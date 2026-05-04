@@ -3,7 +3,7 @@
 import ifcopenshell
 import ifcopenshell.util.element
 
-from appcli.ifc.query import _grupos_pset
+from dataviewerifc.ifc.query import _grupos_pset
 
 
 class IFCLoader:

@@ -10,7 +10,7 @@ ToolRunner:
 import json
 from pathlib import Path
 
-from appcli.ai.backends.base import AIBackend, ToolCall
+from dataviewerifc.ai.backends.base import AIBackend, ToolCall
 
 _SYSTEM_PROMPT_FILE = Path(__file__).parent.parent / "data" / "system_prompt.txt"
 

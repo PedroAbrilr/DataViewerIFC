@@ -1,7 +1,7 @@
 """Herramientas IFC de estructura edilicia: plantas y áreas."""
 
-from appcli.ifc import query as _q
-from appcli.plugins.ifc._utils import _extract_ids, _fmt_lista
+from dataviewerifc.ifc import query as _q
+from dataviewerifc.plugins.ifc._utils import _extract_ids, _fmt_lista
 
 
 class ListarPlantas:

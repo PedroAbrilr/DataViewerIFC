@@ -4,7 +4,7 @@ import ifcopenshell
 import ifcopenshell.guid
 import pytest
 
-from appcli.ifc.query import (
+from dataviewerifc.ifc.query import (
     _normalizar_tipo,
     buscar_por_nombre,
     buscar_por_tipo,

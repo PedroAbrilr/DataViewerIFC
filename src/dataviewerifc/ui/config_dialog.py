@@ -6,9 +6,9 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
-from appcli import config as _config
-from appcli.platform_support import get_platform
-from appcli.ui import theme
+from dataviewerifc import config as _config
+from dataviewerifc.platform_support import get_platform
+from dataviewerifc.ui import theme
 
 MARGIN = 20
 

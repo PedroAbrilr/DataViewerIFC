@@ -1,6 +1,6 @@
 """Punto de entrada de la aplicación."""
 
-from appcli.ui.app import App
+from dataviewerifc.ui.app import App
 
 
 def main():

@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from appcli.ai.tool_runner import ToolRunner
-from appcli.ai.backends.base import ChatResponse, ToolCall
-from appcli.plugins.registry import ToolRegistry
+from dataviewerifc.ai.tool_runner import ToolRunner
+from dataviewerifc.ai.backends.base import ChatResponse, ToolCall
+from dataviewerifc.plugins.registry import ToolRegistry
 
 
 # ------------------------------------------------------------------
@@ -134,7 +134,7 @@ def test_build_system_con_seleccion_y_herramientas():
 
 def test_build_system_sin_seleccion_con_herramientas():
     r = _runner()
-    assert "modelo IFC completo" in r._build_system(True)
+    assert "No hay ningún archivo IFC cargado" in r._build_system(True)
 
 
 # ------------------------------------------------------------------

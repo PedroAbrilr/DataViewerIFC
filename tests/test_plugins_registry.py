@@ -1,7 +1,7 @@
 """Tests unitarios para plugins/registry.py (ToolRegistry)."""
 
 import pytest
-from appcli.plugins.registry import ToolRegistry
+from dataviewerifc.plugins.registry import ToolRegistry
 
 
 # ------------------------------------------------------------------

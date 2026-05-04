@@ -5,13 +5,13 @@ Para añadir o eliminar una herramienta, editar únicamente este archivo:
   - Añadir o quitar la línea reg_base.register(...) o reg_sel.register(...).
 """
 
-from appcli.plugins.registry import ToolRegistry
-from appcli.plugins.ifc.buscar import BuscarElementos, BuscarPorNombre, ContarElementos
-from appcli.plugins.ifc.estructura import ListarPlantas, ElementosDePlanta, CalcularAreaTotal
-from appcli.plugins.ifc.propiedades import ObtenerPropiedades, FiltrarPorPropiedad
-from appcli.plugins.ifc.seleccion import ObtenerSeleccion
-from appcli.plugins.app.herramientas import EstadoApp, CargarIfc
-from appcli.plugins.app.proyecto import ObtenerDirectorioProyecto, EstablecerDirectorioProyecto, BuscarArchivosIfc
+from dataviewerifc.plugins.registry import ToolRegistry
+from dataviewerifc.plugins.ifc.buscar import BuscarElementos, BuscarPorNombre, ContarElementos
+from dataviewerifc.plugins.ifc.estructura import ListarPlantas, ElementosDePlanta, CalcularAreaTotal
+from dataviewerifc.plugins.ifc.propiedades import ObtenerPropiedades, FiltrarPorPropiedad
+from dataviewerifc.plugins.ifc.seleccion import ObtenerSeleccion
+from dataviewerifc.plugins.app.herramientas import EstadoApp, CargarIfc
+from dataviewerifc.plugins.app.proyecto import ObtenerDirectorioProyecto, EstablecerDirectorioProyecto, BuscarArchivosIfc
 
 
 def construir_registries(loader, get_context, get_archivo_activo, on_cargar):

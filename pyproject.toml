@@ -1,5 +1,5 @@
 [project]
-name = "appcli"
+name = "dataviewerifc"
 version = "1.2.0"
 description = "Visor de archivos IFC con consola de IA"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.gui-scripts]
-appcli = "appcli.main:main"
+dataviewerifc = "dataviewerifc.main:main"
 
 [build-system]
 requires = ["setuptools>=45"]
@@ -26,7 +26,7 @@ dev = ["pytest"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-appcli = ["data/manual_usuario.md", "data/Modelfile", "data/system_prompt.txt"]
+dataviewerifc = ["data/manual_usuario.md", "data/Modelfile", "data/system_prompt.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

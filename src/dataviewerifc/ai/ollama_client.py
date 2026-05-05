@@ -1,5 +1,6 @@
 """Cliente para comunicación con Ollama en local."""
 
+import logging
 import os
 import subprocess
 import tempfile
@@ -8,13 +9,14 @@ from pathlib import Path
 
 import ollama
 
+_log = logging.getLogger(__name__)
+
 from dataviewerifc import config as _config
 from dataviewerifc.platform_support import get_platform
 
 _PKG_DIR      = Path(__file__).parent.parent
 _CUSTOM_MODEL = "ifc-assistant"
 _MODELFILE    = _PKG_DIR / "data" / "Modelfile"
-_MANUAL_FILE  = _PKG_DIR / "data" / "manual_usuario.md"
 
 
 def _ollama_bin() -> str:
@@ -43,6 +45,35 @@ def _base_model() -> str:
     return _config.load().get("base_model", "qwen2.5:1.5b")
 
 
+def _parse_modelfile(content: str) -> tuple[str, dict]:
+    """Extrae (system_prompt, parámetros) de un Modelfile."""
+    system_lines: list[str] = []
+    params: dict = {}
+    in_system = False
+
+    for line in content.splitlines():
+        if not in_system and line.startswith("SYSTEM \"\"\""):
+            in_system = True
+            rest = line[len('SYSTEM """'):]
+            if rest:
+                system_lines.append(rest)
+        elif in_system:
+            if line.strip() == '"""':
+                in_system = False
+            else:
+                system_lines.append(line)
+        elif line.startswith("PARAMETER "):
+            parts = line.split(None, 2)
+            if len(parts) == 3:
+                key, val = parts[1], parts[2]
+                try:
+                    params[key] = float(val) if "." in val else int(val)
+                except ValueError:
+                    params[key] = val
+
+    return "\n".join(system_lines).strip(), params
+
+
 class OllamaClient:
     def __init__(self):
         self._proceso = None  # subproceso de ollama serve
@@ -62,6 +93,7 @@ class OllamaClient:
         _prepare_models_dir()
 
         # 1. Comprobar si Ollama responde
+        _log.debug("ensure_running() paso 1 — ping")
         if not self._ping():
             status("Iniciando Ollama...")
             try:
@@ -84,6 +116,7 @@ class OllamaClient:
 
             status("Ollama iniciado.")
 
+        _log.debug("ensure_running() paso 2 — comprobar modelo base")
         # 2. Descargar el modelo base si no está disponible
         base_model = _base_model()
         modelos = self.modelos_disponibles()
@@ -103,6 +136,7 @@ class OllamaClient:
                 return False
             modelos = self.modelos_disponibles()
 
+        _log.debug("ensure_running() paso 3 — comprobar modelo personalizado")
         # 3. Crear el modelo personalizado desde el Modelfile si no existe
         custom_disponible = any(_CUSTOM_MODEL in m for m in modelos)
 
@@ -110,33 +144,32 @@ class OllamaClient:
             status(f"Creando modelo {_CUSTOM_MODEL}...")
             try:
                 modelfile_content = _MODELFILE.read_text(encoding="utf-8")
-                modelfile_content = modelfile_content.replace("{{BASE_MODEL}}", base_model)
-                if "{{MANUAL_USUARIO}}" in modelfile_content:
-                    manual = _MANUAL_FILE.read_text(encoding="utf-8") if _MANUAL_FILE.exists() else "(Manual de usuario no disponible)"
-                    modelfile_content = modelfile_content.replace("{{MANUAL_USUARIO}}", manual)
-
-                with tempfile.NamedTemporaryFile(
-                    mode="w", encoding="utf-8", suffix=".modelfile", delete=False
-                ) as tmp:
-                    tmp.write(modelfile_content)
-                    tmp_path = tmp.name
-
-                try:
-                    subprocess.run(
-                        [_ollama_bin(), "create", _CUSTOM_MODEL, "-f", tmp_path],
-                        check=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                finally:
-                    Path(tmp_path).unlink(missing_ok=True)
-
+                system_prompt, params = _parse_modelfile(modelfile_content)
+                for _ in ollama.create(
+                    model=_CUSTOM_MODEL,
+                    from_=base_model,
+                    system=system_prompt,
+                    parameters=params,
+                    stream=True,
+                ):
+                    pass
                 status(f"Modelo {_CUSTOM_MODEL} listo.")
-            except subprocess.CalledProcessError:
+            except Exception:
                 status(f"Error al crear {_CUSTOM_MODEL}. Usando modelo base.")
         else:
             status(f"Modelo {_CUSTOM_MODEL} listo.")
 
+        # 4. Calentar el modelo: cargarlo en memoria antes de la primera consulta
+        _log.debug("ensure_running() paso 4 — warm-up")
+        status("Cargando modelo en memoria...")
+        t0 = time.perf_counter()
+        try:
+            ollama.generate(model=_CUSTOM_MODEL, prompt="hola", options={"num_predict": 1}, keep_alive="30m")
+            _log.debug("warm-up completado en %.1fs", time.perf_counter() - t0)
+        except Exception as e:
+            _log.debug("warm-up falló en %.1fs: %s", time.perf_counter() - t0, e)
+
+        status("Listo.")
         return True
 
     def _ping(self) -> bool:
@@ -216,35 +249,29 @@ class OllamaClient:
                 status(f"Error al descargar {base_model}.")
                 return False
 
-        # Crear modelo personalizado
+        # Crear modelo personalizado con streaming para ver el progreso real
         status(f"Creando modelo {_CUSTOM_MODEL}...")
         try:
             modelfile_content = _MODELFILE.read_text(encoding="utf-8")
-            modelfile_content = modelfile_content.replace("{{BASE_MODEL}}", base_model)
-            if "{{MANUAL_USUARIO}}" in modelfile_content:
-                manual = _MANUAL_FILE.read_text(encoding="utf-8") if _MANUAL_FILE.exists() else ""
-                modelfile_content = modelfile_content.replace("{{MANUAL_USUARIO}}", manual)
+            system_prompt, params = _parse_modelfile(modelfile_content)
 
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", suffix=".modelfile", delete=False
-            ) as tmp:
-                tmp.write(modelfile_content)
-                tmp_path = tmp.name
-
-            try:
-                subprocess.run(
-                    [_ollama_bin(), "create", _CUSTOM_MODEL, "-f", tmp_path],
-                    check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            finally:
-                Path(tmp_path).unlink(missing_ok=True)
+            for resp in ollama.create(
+                model=_CUSTOM_MODEL,
+                from_=base_model,
+                system=system_prompt,
+                parameters=params,
+                stream=True,
+            ):
+                msg = (resp.status or "").strip()
+                if msg:
+                    if "sha256:" in msg:
+                        msg = msg.split("sha256:")[0].rstrip(" \t:")
+                    status(msg)
 
             status(f"Modelo {_CUSTOM_MODEL} creado correctamente.")
             return True
-        except subprocess.CalledProcessError:
-            status(f"Error al crear {_CUSTOM_MODEL}.")
+        except Exception as e:
+            status(f"Error al crear {_CUSTOM_MODEL}: {e}")
             return False
 
     def modelos_disponibles(self) -> list[str]:

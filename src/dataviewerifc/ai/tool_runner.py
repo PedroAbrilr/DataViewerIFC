@@ -8,7 +8,11 @@ ToolRunner:
 """
 
 import json
+import logging
+import time
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 from dataviewerifc.ai.backends.base import AIBackend, ToolCall
 
@@ -74,55 +78,15 @@ class ToolRunner:
         on_tool_call — callable(nombre, args) al invocar una herramienta
         should_stop  — callable() que devuelve True para cancelar
         """
-        tools   = self._tools_disponibles()
-        system  = self._build_system(bool(tools))
-        messages = [{"role": "user", "content": prompt}]
+        system   = _SYSTEM_BASE  # siempre estático para aprovechar la KV-cache
+        messages = [{"role": "user", "content": self._build_context_prefix() + prompt}]
 
+        _log.debug("chat() — backend=%s prompt=%r", type(self.backend).__name__, prompt[:60])
         try:
-            if tools:
-                for _ in range(_MAX_ITERACIONES):
-                    if should_stop and should_stop():
-                        return
-
-                    response = self.backend.chat_turn(system, messages, tools)
-
-                    if not response.tool_calls:
-                        if response.content:
-                            tc = self._parse_json_tool_call(response.content)
-                            if tc and self._tool_existe(tc.name):
-                                messages.append(self.backend.make_assistant_message(response))
-                                if on_tool_call:
-                                    on_tool_call(tc.name, tc.arguments)
-                                resultado = self._ejecutar(tc.name, tc.arguments)
-                                messages.append(
-                                    self.backend.make_tool_message(tc.id, tc.name, resultado)
-                                )
-                                continue
-                            if not response.content.strip().startswith("{"):
-                                on_token(response.content)
-                                return
-                        break  # JSON inválido o vacío → fallback a streaming
-
-                    messages.append(self.backend.make_assistant_message(response))
-
-                    for tc in response.tool_calls:
-                        if should_stop and should_stop():
-                            return
-                        if on_tool_call:
-                            on_tool_call(tc.name, tc.arguments)
-                        resultado = self._ejecutar(tc.name, tc.arguments)
-                        messages.append(
-                            self.backend.make_tool_message(tc.id, tc.name, resultado)
-                        )
-
-            if should_stop and should_stop():
-                return
-
-            for text in self.backend.chat_stream(system, messages):
-                if should_stop and should_stop():
-                    return
-                on_token(text)
-
+            if getattr(self.backend, "supports_native_tools", True):
+                self._chat_native_tools(system, messages, on_token, on_tool_call, should_stop)
+            else:
+                self._chat_stream_tools(system, messages, on_token, on_tool_call, should_stop)
         except Exception as exc:
             on_token(f"\n[Error del asistente: {exc}]")
 
@@ -171,12 +135,99 @@ class ToolRunner:
             pass
         return None
 
-    def _build_system(self, has_tools: bool) -> str:
-        parts = [_SYSTEM_BASE]
+    def _chat_native_tools(self, system, messages, on_token, on_tool_call, should_stop):
+        """Bucle tool calling con schemas nativos (Claude, OpenAI, Gemini)."""
+        tools = self._tools_disponibles()
+        if tools:
+            for _ in range(_MAX_ITERACIONES):
+                if should_stop and should_stop():
+                    return
+                response = self.backend.chat_turn(system, messages, tools)
+                if not response.tool_calls:
+                    if response.content:
+                        tc = self._parse_json_tool_call(response.content)
+                        if tc and self._tool_existe(tc.name):
+                            messages.append(self.backend.make_assistant_message(response))
+                            if on_tool_call:
+                                on_tool_call(tc.name, tc.arguments)
+                            resultado = self._ejecutar(tc.name, tc.arguments)
+                            messages.append(self.backend.make_tool_message(tc.id, tc.name, resultado))
+                            continue
+                        if not response.content.strip().startswith("{"):
+                            on_token(response.content)
+                            return
+                    break
+                messages.append(self.backend.make_assistant_message(response))
+                for tc in response.tool_calls:
+                    if should_stop and should_stop():
+                        return
+                    if on_tool_call:
+                        on_tool_call(tc.name, tc.arguments)
+                    resultado = self._ejecutar(tc.name, tc.arguments)
+                    messages.append(self.backend.make_tool_message(tc.id, tc.name, resultado))
+
+        if should_stop and should_stop():
+            return
+        for text in self.backend.chat_stream(system, messages):
+            if should_stop and should_stop():
+                return
+            on_token(text)
+
+    def _chat_stream_tools(self, system, messages, on_token, on_tool_call, should_stop):
+        """Stream-first con detección de JSON tool call (Ollama y modelos sin tool calling nativo).
+
+        Los tokens de texto se emiten en tiempo real. Si la respuesta empieza por '{',
+        se acumula en silencio para detectar una tool call; si es válida se ejecuta y
+        se itera; si no, se emite el buffer como texto.
+        """
+        for i in range(_MAX_ITERACIONES):
+            if should_stop and should_stop():
+                return
+
+            _log.debug("_chat_stream_tools() iteración %d — enviando a backend", i + 1)
+            t0 = time.perf_counter()
+            first_token = True
+            buffer: list[str] = []
+            is_tool_call: bool | None = None  # None = aún desconocido
+
+            for text in self.backend.chat_stream(system, messages):
+                if first_token:
+                    _log.debug("primer token en %.3fs", time.perf_counter() - t0)
+                    first_token = False
+                if should_stop and should_stop():
+                    return
+                buffer.append(text)
+                if is_tool_call is None:
+                    stripped = "".join(buffer).lstrip()
+                    if stripped.startswith("{"):
+                        is_tool_call = True   # podría ser JSON → acumular
+                    elif stripped:
+                        is_tool_call = False  # texto claro → emitir
+                        on_token(text)
+                elif not is_tool_call:
+                    on_token(text)
+
+            full = "".join(buffer).strip()
+            _log.debug("stream completo en %.3fs — is_tool_call=%s", time.perf_counter() - t0, is_tool_call)
+            if is_tool_call:
+                tc = self._parse_json_tool_call(full)
+                if tc and self._tool_existe(tc.name):
+                    _log.debug("tool call: %s(%s)", tc.name, tc.arguments)
+                    if on_tool_call:
+                        on_tool_call(tc.name, tc.arguments)
+                    resultado = self._ejecutar(tc.name, tc.arguments)
+                    messages.append({"role": "assistant", "content": full})
+                    messages.append(self.backend.make_tool_message(tc.id, tc.name, resultado))
+                    continue  # siguiente iteración para la respuesta final
+                on_token(full)  # JSON inválido → emitir como texto
+            return  # respuesta de texto → done
+
+    def _build_context_prefix(self) -> str:
+        parts = []
         if self.contexto_archivo:
             parts.append(self.contexto_archivo)
         else:
-            parts.append("No hay ningún archivo IFC cargado actualmente.")
+            parts.append("No hay ningún archivo IFC cargado.")
         if self.contexto_seleccion:
             parts.append(self.contexto_seleccion)
-        return "\n\n".join(parts)
+        return "[" + " · ".join(parts) + "]\n"

@@ -208,20 +208,60 @@ class ConfigDialog:
         )
         lbl_progreso.pack(anchor="w", pady=(4, 0))
 
+        barra = ttk.Progressbar(
+            frame_ollama, orient="horizontal", mode="determinate", maximum=100,
+        )
+        barra.pack(fill=tk.X, pady=(4, 0))
+        barra.pack_forget()  # oculta hasta que se inicia la recreación
+
+        # Mapa mensaje → porcentaje de progreso
+        _PASOS = [
+            ("iniciando ollama",            5),
+            ("ollama iniciado",            15),
+            ("eliminando modelo anterior", 20),
+            ("aviso:",                     25),
+            ("descargando modelo base",    35),
+            ("creando modelo",             75),
+            ("gathering model",            77),
+            ("using existing layer",       82),
+            ("creating new layer",         82),
+            ("copying",                    84),
+            ("transferring",               86),
+            ("writing manifest",           92),
+            ("success",                    98),
+        ]
+
+        def _progreso_para(msg: str) -> int | None:
+            m = msg.lower()
+            for clave, valor in _PASOS:
+                if clave in m:
+                    return valor
+            return None
+
         def _recrear_modelo():
             btn_recrear.config(state=tk.DISABLED)
+            barra["value"] = 0
+            barra.pack(fill=tk.X, pady=(4, 0))
             lbl_progreso.config(text="Iniciando...", fg=theme.FG_SECONDARY)
 
             def on_status(msg):
                 color = "#e06c75" if msg.lower().startswith("error") else theme.FG_SECONDARY
-                self._dlg.after(0, lambda m=msg, c=color: lbl_progreso.config(text=m, fg=c))
+                pct = _progreso_para(msg)
+                def _update(m=msg, c=color, p=pct):
+                    lbl_progreso.config(text=m, fg=c)
+                    if p is not None:
+                        barra["value"] = p
+                self._dlg.after(0, _update)
 
             def _run():
                 ok = self._app.ollama.recrear_modelo(on_status=on_status)
                 def _done():
                     btn_recrear.config(state=tk.NORMAL)
                     if ok:
+                        barra["value"] = 100
                         lbl_progreso.config(text="Modelo listo.", fg=theme.ACCENT)
+                    else:
+                        barra.pack_forget()
                 self._dlg.after(0, _done)
 
             threading.Thread(target=_run, daemon=True).start()

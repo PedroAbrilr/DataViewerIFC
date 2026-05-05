@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from dataviewerifc.ai.tool_runner import ToolRunner
+from dataviewerifc.ai.tool_runner import ToolRunner, _SYSTEM_BASE
 from dataviewerifc.ai.backends.base import ChatResponse, ToolCall
 from dataviewerifc.plugins.registry import ToolRegistry
 
@@ -112,29 +112,29 @@ def test_tools_sin_elementos_no_incluye_registry_seleccion():
 
 
 # ------------------------------------------------------------------
-# _build_system
+# _build_context_prefix
 # ------------------------------------------------------------------
 
-def test_build_system_contiene_base():
-    assert "BIM" in _runner()._build_system(False)
+def test_build_context_prefix_contiene_base():
+    assert "BIM" in _SYSTEM_BASE
 
 
-def test_build_system_incluye_archivo():
+def test_build_context_prefix_incluye_archivo():
     r = _runner()
     r.set_archivo("test.ifc", 10)
-    assert "test.ifc" in r._build_system(False)
+    assert "test.ifc" in r._build_context_prefix()
 
 
-def test_build_system_con_seleccion_y_herramientas():
+def test_build_context_prefix_con_seleccion():
     r = _runner()
     r._elementos = [_elem()]
     r.contexto_seleccion = "Elemento seleccionado: Muro (IfcWall)"
-    assert "obtener_seleccion" in r._build_system(True)
+    assert "Muro" in r._build_context_prefix()
 
 
-def test_build_system_sin_seleccion_con_herramientas():
+def test_build_context_prefix_sin_archivo():
     r = _runner()
-    assert "No hay ningún archivo IFC cargado" in r._build_system(True)
+    assert "No hay ningún archivo IFC cargado" in r._build_context_prefix()
 
 
 # ------------------------------------------------------------------

@@ -116,7 +116,7 @@ def test_tools_sin_elementos_no_incluye_registry_seleccion():
 # ------------------------------------------------------------------
 
 def test_build_context_prefix_contiene_base():
-    assert "BIM" in _SYSTEM_BASE
+    assert "IFC" in _SYSTEM_BASE
 
 
 def test_build_context_prefix_incluye_archivo():

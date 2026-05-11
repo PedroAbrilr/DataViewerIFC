@@ -37,7 +37,7 @@ dataviewerifc-env\Scripts\activate
 ### 2. Instalar DataViewerIFC
 
 ```bash
-pip install https://github.com/PedroAbrilr/ifc_IA_CLI/releases/latest/download/dataviewerifc-1.2.0-py3-none-any.whl
+pip install https://github.com/PedroAbrilr/DataViewerIFC/releases/latest/download/dataviewerifc-1.2.0-py3-none-any.whl
 ```
 
 ### 3. Arrancar la aplicación

@@ -56,7 +56,7 @@ class App:
             return OpenAIBackend(model=cfg.get("openai_model", "gpt-4o-mini"))
         if backend_id == "gemini":
             return GeminiBackend(model=cfg.get("gemini_model", "gemini-2.0-flash"))
-        return OllamaBackend(model=cfg.get("ollama_model", "ifc-assistant"))
+        return OllamaBackend(model="ifc-assistant")
 
     # ------------------------------------------------------------------
     # Toolbar

@@ -6,6 +6,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
+import ollama as _ollama
+
 from dataviewerifc import config as _config
 from dataviewerifc.platform_support import get_platform
 from dataviewerifc.ui import theme
@@ -13,7 +15,7 @@ from dataviewerifc.ui import theme
 MARGIN = 20
 
 _MODELOS = {
-    "ollama":  ["ifc-assistant"],
+    "ollama":  [],
     "claude":  ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"],
     "openai":  ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
     "gemini":  ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
@@ -53,8 +55,6 @@ def _directorios() -> list[dict]:
     plat = get_platform()
     entradas = [
         {"label": "Configuración",  "path": plat.config_dir},
-        {"label": "Ollama",         "path": plat.ollama_dir},
-        {"label": "Modelos Ollama", "path": plat.models_dir},
     ]
     if plat.shortcut_path:
         entradas.append({"label": "Acceso directo", "path": plat.shortcut_path})
@@ -220,7 +220,6 @@ class ConfigDialog:
             ("ollama iniciado",            15),
             ("eliminando modelo anterior", 20),
             ("aviso:",                     25),
-            ("descargando modelo base",    35),
             ("creando modelo",             75),
             ("gathering model",            77),
             ("using existing layer",       82),
@@ -278,12 +277,14 @@ class ConfigDialog:
             bid = var_backend.get()
             modelos = list(_MODELOS.get(bid, []))
             if bid == "ollama":
-                base = cfg.get("base_model", "")
-                if base and base not in modelos:
-                    modelos.append(base)
+                try:
+                    modelos = [m.model for m in _ollama.list().models]
+                except Exception:
+                    modelos = []
+                    lbl_aviso.config(text="Ollama no disponible. Asegúrate de que está instalado y corriendo.")
             combo_modelo["values"] = modelos
             modelo_actual = {
-                "ollama":  cfg.get("ollama_model",  "ifc-assistant"),
+                "ollama":  cfg.get("ollama_base_model", ""),
                 "claude":  cfg.get("claude_model",  "claude-sonnet-4-6"),
                 "openai":  cfg.get("openai_model",  "gpt-4o-mini"),
                 "gemini":  cfg.get("gemini_model",  "gemini-2.0-flash"),
@@ -357,7 +358,10 @@ class ConfigDialog:
                 cfg_actual[_CFG_KEY[bid]] = clave
 
             cfg_actual["active_backend"] = bid
-            cfg_actual[f"{bid}_model"] = modelo
+            if bid == "ollama":
+                cfg_actual["ollama_base_model"] = modelo
+            else:
+                cfg_actual[f"{bid}_model"] = modelo
             _config.save(cfg_actual)
             nuevo_backend = self._app._crear_backend(bid, cfg_actual)
 

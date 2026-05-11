@@ -18,7 +18,7 @@ def test_load_defaults_sin_archivo(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "_CONFIG_FILE", tmp_path / "config.json")
     cfg = config.load()
     assert cfg["active_backend"] == "ollama"
-    assert cfg["ollama_model"] == "ifc-assistant"
+    assert cfg["ollama_base_model"] == ""
     assert cfg["claude_model"] == "claude-sonnet-4-6"
     assert cfg["openai_model"] == "gpt-4o-mini"
 
@@ -29,7 +29,7 @@ def test_load_mezcla_con_defaults(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "_CONFIG_FILE", cfg_file)
     cfg = config.load()
     assert cfg["active_backend"] == "claude"
-    assert cfg["ollama_model"] == "ifc-assistant"  # default intacto
+    assert cfg["ollama_base_model"] == ""  # default intacto
 
 
 def test_load_archivo_corrupto(tmp_path, monkeypatch):

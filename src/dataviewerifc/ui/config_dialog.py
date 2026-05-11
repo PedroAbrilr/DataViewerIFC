@@ -354,11 +354,12 @@ class ConfigDialog:
                 if not clave:
                     return  # el usuario canceló
                 os.environ[_ENV_KEY[bid]] = clave
-                _config.save({_CFG_KEY[bid]: clave})
+                cfg_actual[_CFG_KEY[bid]] = clave
 
-            _config.save({"active_backend": bid, f"{bid}_model": modelo})
-            nuevo_cfg = {**cfg_actual, "active_backend": bid, f"{bid}_model": modelo}
-            nuevo_backend = self._app._crear_backend(bid, nuevo_cfg)
+            cfg_actual["active_backend"] = bid
+            cfg_actual[f"{bid}_model"] = modelo
+            _config.save(cfg_actual)
+            nuevo_backend = self._app._crear_backend(bid, cfg_actual)
 
             self._app._backend_id = bid
             self._app.backend = nuevo_backend

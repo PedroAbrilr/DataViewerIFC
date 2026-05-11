@@ -235,7 +235,6 @@ class OllamaClient:
 
         # Descargar modelo base si no está disponible
         base_model = _base_model()
-        modelos = self.modelos_disponibles()
         if not any(base_model.split(":")[0] in m for m in modelos):
             status(f"Descargando modelo base {base_model}... (puede tardar varios minutos)")
             try:

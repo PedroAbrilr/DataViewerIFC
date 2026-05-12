@@ -30,6 +30,7 @@ def _load_system_base() -> str:
 _SYSTEM_BASE = _load_system_base()
 
 _MAX_ITERACIONES = 5
+_MAX_EXCHANGES   = 5  # exchanges antes de compactar el historial
 
 
 class ToolRunner:
@@ -42,6 +43,8 @@ class ToolRunner:
         self.contexto_seleccion  = ""
         self._elementos          = []
         self._props              = []
+        self._historial: list[dict] = []   # últimos N exchanges (user + assistant)
+        self._memoria_compactada = ""      # resumen IA de exchanges anteriores
 
     # ------------------------------------------------------------------
     # API de contexto
@@ -50,6 +53,12 @@ class ToolRunner:
         self.contexto_archivo = (
             f"Archivo IFC abierto: {nombre} ({total} elementos cargados)."
         )
+        self.limpiar_historial()
+
+    def limpiar_historial(self):
+        """Resetea la memoria conversacional (al cargar nuevo archivo)."""
+        self._historial = []
+        self._memoria_compactada = ""
 
     def set_seleccion(self, elementos: list, props: list):
         self._elementos = elementos
@@ -79,16 +88,71 @@ class ToolRunner:
         should_stop  — callable() que devuelve True para cancelar
         """
         system   = _SYSTEM_BASE  # siempre estático para aprovechar la KV-cache
-        messages = [{"role": "user", "content": self._build_context_prefix() + prompt}]
+        messages = self._build_messages(prompt)
 
         _log.debug("chat() — backend=%s prompt=%r", type(self.backend).__name__, prompt[:60])
+
+        tokens_acumulados: list[str] = []
+        def _on_token(text):
+            tokens_acumulados.append(text)
+            on_token(text)
+
         try:
             if getattr(self.backend, "supports_native_tools", True):
-                self._chat_native_tools(system, messages, on_token, on_tool_call, should_stop)
+                self._chat_native_tools(system, messages, _on_token, on_tool_call, should_stop)
             else:
-                self._chat_stream_tools(system, messages, on_token, on_tool_call, should_stop)
+                self._chat_stream_tools(system, messages, _on_token, on_tool_call, should_stop)
         except Exception as exc:
             on_token(f"\n[Error del asistente: {exc}]")
+            return
+
+        if tokens_acumulados and not (should_stop and should_stop()):
+            self._actualizar_historial(prompt, "".join(tokens_acumulados))
+
+    # ------------------------------------------------------------------
+    # Memoria conversacional
+    # ------------------------------------------------------------------
+    def _build_messages(self, prompt: str) -> list[dict]:
+        """Construye la lista de mensajes: [resumen?] + historial + mensaje actual."""
+        messages: list[dict] = []
+        if self._memoria_compactada:
+            messages.append({"role": "user", "content": f"[Resumen de la conversación anterior: {self._memoria_compactada}]"})
+            messages.append({"role": "assistant", "content": "Entendido."})
+        messages.extend(self._historial)
+        messages.append({"role": "user", "content": self._build_context_prefix() + prompt})
+        return messages
+
+    def _actualizar_historial(self, prompt: str, respuesta: str):
+        self._historial.append({"role": "user", "content": prompt})
+        self._historial.append({"role": "assistant", "content": respuesta})
+        if len(self._historial) // 2 >= _MAX_EXCHANGES:
+            self._compactar_historial()
+
+    def _compactar_historial(self):
+        """Resume el historial actual con la IA y rota el buffer."""
+        if not self._historial:
+            return
+        partes = []
+        for msg in self._historial:
+            rol = "Usuario" if msg["role"] == "user" else "Asistente"
+            partes.append(f"{rol}: {msg['content']}")
+        previo = f"Resumen previo:\n{self._memoria_compactada}\n\n" if self._memoria_compactada else ""
+        prompt_resumen = (
+            f"{previo}Resume en pocas frases los puntos clave de esta conversación sobre un "
+            f"archivo IFC. Sé breve y concreto:\n\n" + "\n".join(partes)
+        )
+        try:
+            tokens: list[str] = []
+            for chunk in self.backend.chat_stream(
+                "Resume conversaciones de forma concisa.",
+                [{"role": "user", "content": prompt_resumen}],
+            ):
+                tokens.append(chunk)
+            self._memoria_compactada = "".join(tokens).strip()
+            _log.debug("historial compactado (%d exchanges)", _MAX_EXCHANGES)
+        except Exception as e:
+            _log.warning("compactación de historial falló: %s", e)
+        self._historial = []
 
     # ------------------------------------------------------------------
     # Herramientas

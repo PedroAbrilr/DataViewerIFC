@@ -238,6 +238,16 @@ class ConfigDialog:
             return None
 
         def _recrear_modelo():
+            base = var_modelo.get()
+            if not base:
+                _actualizar_combo()
+                base = var_modelo.get()
+            if not base:
+                lbl_progreso.config(
+                    text="Selecciona un modelo base antes de recrear.", fg="#e06c75",
+                )
+                return
+
             btn_recrear.config(state=tk.DISABLED)
             barra["value"] = 0
             barra.pack(fill=tk.X, pady=(4, 0))
@@ -253,7 +263,7 @@ class ConfigDialog:
                 self._dlg.after(0, _update)
 
             def _run():
-                ok = self._app.ollama.recrear_modelo(on_status=on_status)
+                ok = self._app.ollama.recrear_modelo(on_status=on_status, base_model=base)
                 def _done():
                     btn_recrear.config(state=tk.NORMAL)
                     if ok:
@@ -279,6 +289,7 @@ class ConfigDialog:
             if bid == "ollama":
                 try:
                     modelos = [m.model for m in _ollama.list().models]
+                    lbl_aviso.config(text="")
                 except Exception:
                     modelos = []
                     lbl_aviso.config(text="Ollama no disponible. Asegúrate de que está instalado y corriendo.")
@@ -291,13 +302,14 @@ class ConfigDialog:
             }.get(bid, modelos[0] if modelos else "")
             var_modelo.set(modelo_actual if modelo_actual in modelos else (modelos[0] if modelos else ""))
 
-            backend_tmp = self._app._crear_backend(bid, {
-                "ollama_model": var_modelo.get(),
-                "claude_model": var_modelo.get(),
-                "openai_model": var_modelo.get(),
-            })
-            ok, msg = backend_tmp.is_available()
-            lbl_aviso.config(text=msg if not ok else "")
+            if bid != "ollama":
+                backend_tmp = self._app._crear_backend(bid, {
+                    "claude_model": var_modelo.get(),
+                    "openai_model": var_modelo.get(),
+                    "gemini_model": var_modelo.get(),
+                })
+                ok, msg = backend_tmp.is_available()
+                lbl_aviso.config(text=msg if not ok else "")
 
         for child in frame_radios.winfo_children():
             child.config(command=lambda: (_actualizar_combo(), _mostrar_ocultar_ollama()))

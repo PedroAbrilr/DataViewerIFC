@@ -88,15 +88,14 @@ class OllamaClient:
 
         # 2. Crear el modelo personalizado desde el Modelfile si no existe
         _log.debug("ensure_running() paso 2 — comprobar modelo personalizado")
-        base_model = _config.load().get("ollama_base_model", "")
-        if not base_model:
-            status("Error: selecciona un modelo base en Configuración.")
-            return False
-
         modelos = self.modelos_disponibles()
         custom_disponible = any(_CUSTOM_MODEL in m for m in modelos)
 
         if not custom_disponible:
+            base_model = _config.load().get("ollama_base_model", "")
+            if not base_model:
+                status("Error: selecciona un modelo base en Configuración.")
+                return False
             status(f"Creando modelo {_CUSTOM_MODEL}...")
             try:
                 modelfile_content = _MODELFILE.read_text(encoding="utf-8")
@@ -145,9 +144,10 @@ class OllamaClient:
                 self._proceso.kill()
         self._proceso = None
 
-    def recrear_modelo(self, on_status=None) -> bool:
+    def recrear_modelo(self, on_status=None, base_model: str = "") -> bool:
         """Borra ifc-assistant si existe y lo recrea desde el Modelfile.
 
+        base_model sobreescribe el valor guardado en config si se proporciona.
         Devuelve True si el modelo quedó listo, False si hubo error.
         """
         def status(msg):
@@ -173,7 +173,8 @@ class OllamaClient:
                 status("Error: Ollama no responde.")
                 return False
 
-        base_model = _config.load().get("ollama_base_model", "")
+        if not base_model:
+            base_model = _config.load().get("ollama_base_model", "")
         if not base_model:
             status("Error: selecciona un modelo base en Configuración.")
             return False

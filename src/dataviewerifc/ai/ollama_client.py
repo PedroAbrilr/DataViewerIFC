@@ -2,9 +2,13 @@
 
 import logging
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
+
+# Evita ventana de consola al lanzar subprocesos en Windows
+_SUBPROCESS_FLAGS = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
 
 import ollama
 
@@ -71,6 +75,7 @@ class OllamaClient:
                     ["ollama", "serve"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    **_SUBPROCESS_FLAGS,
                 )
             except FileNotFoundError:
                 status("Error: Ollama no está instalado. Descárgalo en https://ollama.com")
@@ -161,6 +166,7 @@ class OllamaClient:
                     ["ollama", "serve"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    **_SUBPROCESS_FLAGS,
                 )
             except FileNotFoundError:
                 status("Error: Ollama no está instalado.")
@@ -189,6 +195,7 @@ class OllamaClient:
                     check=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    **_SUBPROCESS_FLAGS,
                 )
             except subprocess.CalledProcessError:
                 status(f"Aviso: no se pudo eliminar {_CUSTOM_MODEL}.")
@@ -217,6 +224,36 @@ class OllamaClient:
         except Exception as e:
             status(f"Error al crear {_CUSTOM_MODEL}: {e}")
             return False
+
+    def iniciar_servidor(self, on_status=None) -> bool:
+        """Arranca ollama serve si no responde. No crea ni carga modelos."""
+        def status(msg):
+            if on_status:
+                on_status(msg)
+
+        if self._ping():
+            return True
+
+        status("Iniciando Ollama...")
+        try:
+            self._proceso = subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                **_SUBPROCESS_FLAGS,
+            )
+        except FileNotFoundError:
+            status("Error: Ollama no está instalado.")
+            return False
+
+        for _ in range(20):
+            time.sleep(0.5)
+            if self._ping():
+                status("Ollama iniciado.")
+                return True
+
+        status("Error: Ollama no responde.")
+        return False
 
     def modelos_disponibles(self) -> list[str]:
         try:

@@ -283,6 +283,19 @@ class ConfigDialog:
             else:
                 frame_ollama.pack_forget()
 
+        _arrancando_ollama = {"activo": False}
+
+        def _arrancar_y_refrescar():
+            _arrancando_ollama["activo"] = True
+            ok = self._app.ollama.iniciar_servidor()
+            def _done():
+                _arrancando_ollama["activo"] = False
+                if ok:
+                    _actualizar_combo()
+                else:
+                    lbl_aviso.config(text="Ollama no disponible. Asegúrate de que está instalado y corriendo.")
+            self._dlg.after(0, _done)
+
         def _actualizar_combo(*_):
             bid = var_backend.get()
             modelos = list(_MODELOS.get(bid, []))
@@ -292,7 +305,11 @@ class ConfigDialog:
                     lbl_aviso.config(text="")
                 except Exception:
                     modelos = []
-                    lbl_aviso.config(text="Ollama no disponible. Asegúrate de que está instalado y corriendo.")
+                    if not _arrancando_ollama["activo"]:
+                        lbl_aviso.config(text="Iniciando Ollama...")
+                        threading.Thread(target=_arrancar_y_refrescar, daemon=True).start()
+                    else:
+                        lbl_aviso.config(text="Iniciando Ollama...")
             combo_modelo["values"] = modelos
             modelo_actual = {
                 "ollama":  cfg.get("ollama_base_model", ""),

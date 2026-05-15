@@ -251,9 +251,9 @@ class OllamaClient:
             if self._ping():
                 status("Ollama iniciado.")
                 return True
-
-        status("Error: Ollama no responde.")
-        return False
+        else:
+            status("Error: Ollama no responde.")
+            return False
 
     def modelos_disponibles(self) -> list[str]:
         try:

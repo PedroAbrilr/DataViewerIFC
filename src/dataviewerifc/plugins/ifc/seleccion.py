@@ -111,7 +111,11 @@ class ObtenerSeleccion:
 
         acum = defaultdict(list)
         for e in elementos:
-            for grupo in self._loader.get_properties(e):
+            try:
+                grupos = self._loader.get_properties(e)
+            except Exception:
+                continue
+            for grupo in grupos:
                 for p in grupo["props"]:
                     try:
                         acum[(grupo["pset"], p["nombre"], p["unidad"])].append(float(p["valor"]))

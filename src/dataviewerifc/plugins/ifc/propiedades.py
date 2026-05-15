@@ -111,7 +111,7 @@ class FiltrarPorPropiedad:
 
             tipo = args.get("tipo", "")
             elementos_modelo = (
-                modelo.by_type(_q._normalizar_tipo(tipo)) if tipo
+                modelo.by_type(_q.normalizar_tipo(tipo)) if tipo
                 else modelo.by_type("IfcProduct")
             )
             resultado = _q.filtrar_por_propiedad(elementos_modelo, propiedad, valor)

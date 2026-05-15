@@ -29,7 +29,7 @@ def _elem_dict(e) -> dict:
     }
 
 
-def _normalizar_tipo(tipo: str) -> str:
+def normalizar_tipo(tipo: str) -> str:
     return tipo if tipo.startswith("Ifc") else f"Ifc{tipo}"
 
 
@@ -97,7 +97,7 @@ def buscar_por_tipo(modelo, tipo: str) -> list:
     El tipo puede llevar o no el prefijo 'Ifc' (p.ej. 'Wall' o 'IfcWall').
     """
     try:
-        elementos = modelo.by_type(_normalizar_tipo(tipo))
+        elementos = modelo.by_type(normalizar_tipo(tipo))
     except Exception:
         return []
     return [_elem_dict(e) for e in elementos]
@@ -106,7 +106,7 @@ def buscar_por_tipo(modelo, tipo: str) -> list:
 def contar_por_tipo(modelo, tipo: str) -> int:
     """Cuenta los elementos del tipo IFC dado."""
     try:
-        return len(modelo.by_type(_normalizar_tipo(tipo)))
+        return len(modelo.by_type(normalizar_tipo(tipo)))
     except Exception:
         return 0
 
@@ -144,7 +144,7 @@ def calcular_area_total(modelo, tipo: str) -> float:
     aunque tenga el dato en varios quantity sets.
     """
     try:
-        ifc_elementos = modelo.by_type(_normalizar_tipo(tipo))
+        ifc_elementos = modelo.by_type(normalizar_tipo(tipo))
     except Exception:
         return 0.0
 

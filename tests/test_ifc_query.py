@@ -5,7 +5,7 @@ import ifcopenshell.guid
 import pytest
 
 from dataviewerifc.ifc.query import (
-    _normalizar_tipo,
+    normalizar_tipo as _normalizar_tipo,
     buscar_por_nombre,
     buscar_por_tipo,
     calcular_area_total,

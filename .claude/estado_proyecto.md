@@ -1,7 +1,7 @@
 Proyecto: DataViewerIFC
-Etapa actual: Prueba
-Fase: Refactor completo — app finalizada
-Último commit: pendiente (sesión 260515)
+Etapa actual: Completado
+Fase: —
+Último commit: 1817b51 — 260515
 Decisiones tomadas:
   - Renombrado AppCLI → DataViewerIFC (260504)
   - Sistema de plugins para herramientas IA (reemplaza ai/ifc_tools.py y ai/app_tools.py)
@@ -49,3 +49,16 @@ Sesión 260515:
   - ensure_running() muestra "Error: Ollama no está arrancado" cuando el binario ollama no está
     en el PATH (p.ej. Ollama en contenedor Podman del host, accedido desde toolbox de Fedora);
     el mensaje es impreciso pero el comportamiento funcional es correcto
+
+Sesión 260515 — Prueba (cierre):
+  - 168 tests pasando (0 fallidos)
+  Correcciones aplicadas:
+    · config_dialog.py: try/except TclError en callbacks _done de _recrear_modelo() y _arrancar_y_refrescar()
+    · config_dialog.py: guarda de carrera movida antes de lanzar el hilo en _actualizar_combo(); rama else redundante eliminada
+    · ollama_client.py: bucle for/else en iniciar_servidor() coherente con el resto del módulo
+    · query.py: _normalizar_tipo renombrada a normalizar_tipo (ahora pública)
+    · seleccion.py: _fmt_estadistico() captura excepciones de get_properties() por elemento
+  Infos anotados sin corrección prevista:
+    · IDs duplicados en Gemini multi-tool call
+    · Ausencia de tests para OllamaClient
+  Proyecto completado
